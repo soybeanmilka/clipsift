@@ -108,9 +108,16 @@ pub fn is_replaceable_confusable(c: char) -> bool {
 
 /// 是否算"可疑字符"（用于快速预检 / 检查报告）。
 ///
+/// 这里统计的是**所有可能给人添麻烦的字符**，不管对应的规则开没开。
+/// 理由：「检查报告」回答的是"这段文本脏在哪"，不是"当前配置会改哪些"——
+/// 如果关掉全角转换就看不见全角的 `－`，用户根本不知道那里有个坑。
+///
 /// 注意这里**不包含**普通空格、tab、换行——它们不是问题。
 pub fn is_suspicious(c: char) -> bool {
-    is_removable_invisible(c) || is_fake_space(c) || is_replaceable_confusable(c)
+    is_removable_invisible(c)
+        || is_fake_space(c)
+        || is_replaceable_confusable(c)
+        || fullwidth_to_ascii(c).is_some()
 }
 
 /// 同形字（homoglyph / confusable）映射表。

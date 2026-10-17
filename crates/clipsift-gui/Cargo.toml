@@ -1,0 +1,29 @@
+[package]
+name = "clipsift-gui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "ClipSift 图形界面：开关规则、看状态、试净化效果"
+
+[[bin]]
+name = "clipsift-gui"
+path = "src/main.rs"
+
+[dependencies]
+clipsift-core = { path = "../clipsift-core" }
+eframe = { version = "0.32", default-features = false, features = [
+    "default_fonts",
+    "glow",
+] }
+
+[target.'cfg(windows)'.dependencies]
+# 读剪贴板。和 CLI 用同一个库，保证两边行为一致。
+arboard = { version = "3.4", default-features = false }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Registry",
+    "Win32_UI_WindowsAndMessaging",
+] }

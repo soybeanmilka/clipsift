@@ -103,7 +103,8 @@ fn all_plans() -> Vec<Plan> {
                             invisible,
                             normalize_spaces: spaces,
                             confusables,
-                            fullwidth_ascii: fullwidth,
+                            fullwidth_alnum: fullwidth,
+                            fullwidth_punct: fullwidth,
                             merge_hard_returns: merge,
                             ..Plan::default()
                         });

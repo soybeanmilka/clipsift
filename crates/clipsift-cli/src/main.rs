@@ -142,7 +142,8 @@ fn run(cli: Cli) -> Result<(), String> {
         plan.merge_hard_returns = true;
     }
     if cli.fullwidth {
-        plan.fullwidth_ascii = true;
+        plan.fullwidth_alnum = true;
+        plan.fullwidth_punct = true;
     }
     for name in &cli.off {
         if !config::disable_rule(&mut plan, name) {

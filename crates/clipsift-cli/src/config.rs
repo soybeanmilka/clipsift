@@ -58,8 +58,18 @@ pub fn disable_rule(plan: &mut Plan, name: &str) -> bool {
             plan.confusables = false;
             true
         }
+        // `fullwidth` 是老名字，一把关掉两档；也可以单独关其中一档。
         "fullwidth" => {
-            plan.fullwidth_ascii = false;
+            plan.fullwidth_alnum = false;
+            plan.fullwidth_punct = false;
+            true
+        }
+        "fullwidth-alnum" | "fullwidth-letters" => {
+            plan.fullwidth_alnum = false;
+            true
+        }
+        "fullwidth-punct" | "fullwidth-punctuation" => {
+            plan.fullwidth_punct = false;
             true
         }
         "merge" => {

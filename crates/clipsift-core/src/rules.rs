@@ -22,7 +22,10 @@ use crate::chars;
 use serde::{Deserialize, Serialize};
 
 /// 一条规则的可开关配置。字段名同时用于 JSON 配置文件和命令行参数。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+///
+/// 实现了 `PartialEq`：GUI 靠"改动前后的 plan 是否相等"来决定要不要重新试算
+/// 样例文本、要不要重启守护线程。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Plan {
     /// 删除零宽 / 双向控制 / BOM / Unicode Tag（默认开）
@@ -31,8 +34,17 @@ pub struct Plan {
     pub normalize_spaces: bool,
     /// 弯引号、破折号、省略号等同形字换成 ASCII（默认开）
     pub confusables: bool,
-    /// 全角 ASCII（`！`~`～`、`Ａ`~`ｚ`）转半角（默认关，英文正文会误伤中文标点场景）
-    pub fullwidth_ascii: bool,
+    /// 全角字母、数字、运算符转半角（默认**开**）。
+    ///
+    /// 这些全角字符出现在代码里就是语法错误：`－1` 不是负一，`ｘ = 1` 的 `ｘ`
+    /// 不是标识符 `x`。既然「发现」列表会把它们报出来，就必须默认修掉——
+    /// 报出来却不修，用户会以为已经处理过了。
+    pub fullwidth_alnum: bool,
+    /// 全角标点（`，` `。` `！` 等）转半角（默认**关**）。
+    ///
+    /// 中文正文里这些都是正常的，转成 `,` `.` `!` 反而变难读。
+    /// 只有明确要把它当代码用时才该打开。
+    pub fullwidth_punct: bool,
     /// 合并硬回车：单换行变空格、空行保留为段落（默认关，只适合从 PDF 抠出来的正文）
     ///
     /// ⚠️ 这是**唯一不做幂等保证**的规则，见 [`merge_hard_returns`] 的说明。
@@ -54,7 +66,8 @@ impl Default for Plan {
             invisible: true,
             normalize_spaces: true,
             confusables: true,
-            fullwidth_ascii: false,
+            fullwidth_alnum: true,
+            fullwidth_punct: false,
             merge_hard_returns: false,
             collapse_whitespace: true,
             trim_trailing: true,
@@ -67,7 +80,7 @@ impl Default for Plan {
 /// 自定义规则：正则 → 替换串。
 ///
 /// `enable` 字段用于 GUI 里勾选/取消而不必删规则。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CustomRule {
     pub name: String,
     pub pattern: String,
@@ -87,7 +100,8 @@ pub enum Rule {
     Invisible,
     NormalizeSpaces,
     Confusables,
-    FullwidthAscii,
+    FullwidthAlnum,
+    FullwidthPunct,
     MergeHardReturns,
     CollapseWhitespace,
     TrimTrailing,
@@ -102,7 +116,8 @@ impl Rule {
             Rule::Invisible => "删除隐形字符",
             Rule::NormalizeSpaces => "伪空格归一",
             Rule::Confusables => "同形字转 ASCII",
-            Rule::FullwidthAscii => "全角转半角",
+            Rule::FullwidthAlnum => "全角字母数字转半角",
+            Rule::FullwidthPunct => "全角标点转半角",
             Rule::MergeHardReturns => "合并硬回车",
             Rule::CollapseWhitespace => "压缩连续空白",
             Rule::TrimTrailing => "去行尾空白",
@@ -117,7 +132,8 @@ impl Rule {
             Rule::Invisible => "invisible",
             Rule::NormalizeSpaces => "spaces",
             Rule::Confusables => "confusables",
-            Rule::FullwidthAscii => "fullwidth",
+            Rule::FullwidthAlnum => "fullwidth-alnum",
+            Rule::FullwidthPunct => "fullwidth-punct",
             Rule::MergeHardReturns => "merge",
             Rule::CollapseWhitespace => "collapse-ws",
             Rule::TrimTrailing => "trim",
@@ -127,11 +143,12 @@ impl Rule {
     }
 
     /// 全部规则（不含 Custom），CLI `--list-rules` 用。
-    pub const ALL: [Rule; 8] = [
+    pub const ALL: [Rule; 9] = [
         Rule::Invisible,
         Rule::NormalizeSpaces,
         Rule::Confusables,
-        Rule::FullwidthAscii,
+        Rule::FullwidthAlnum,
+        Rule::FullwidthPunct,
         Rule::MergeHardReturns,
         Rule::CollapseWhitespace,
         Rule::TrimTrailing,
@@ -183,8 +200,11 @@ impl Plan {
         if self.confusables {
             v.push(Rule::Confusables);
         }
-        if self.fullwidth_ascii {
-            v.push(Rule::FullwidthAscii);
+        if self.fullwidth_alnum {
+            v.push(Rule::FullwidthAlnum);
+        }
+        if self.fullwidth_punct {
+            v.push(Rule::FullwidthPunct);
         }
         if self.merge_hard_returns {
             v.push(Rule::MergeHardReturns);
@@ -292,7 +312,8 @@ pub fn apply(text: &str, plan: &Plan) -> (String, Report) {
             Rule::Invisible => remove_invisible(&cur),
             Rule::NormalizeSpaces => normalize_spaces(&cur),
             Rule::Confusables => to_confusables(&cur),
-            Rule::FullwidthAscii => to_fullwidth_ascii(&cur),
+            Rule::FullwidthAlnum => to_fullwidth(&cur, false),
+            Rule::FullwidthPunct => to_fullwidth(&cur, true),
             Rule::MergeHardReturns => merge_hard_returns(&cur),
             Rule::CollapseWhitespace => collapse_whitespace(&cur),
             Rule::TrimTrailing => trim_trailing(&cur),
@@ -343,11 +364,30 @@ fn to_confusables(text: &str) -> String {
         .collect()
 }
 
-/// 全角 ASCII → 半角。
-fn to_fullwidth_ascii(text: &str) -> String {
+/// 全角 → 半角。
+///
+/// `punct` 决定标点要不要一起转：`，` `。` `！` 在中文正文里是正常的，
+/// 一律转成 `,` `.` `!` 反而难读；但 `－` `＝` `（` 出现在代码里就是语法错误。
+/// 所以调用方按需分两档，不是一刀切。
+fn to_fullwidth(text: &str, punct: bool) -> String {
     text.chars()
-        .map(|c| chars::fullwidth_to_ascii(c).unwrap_or(c))
+        .map(|c| match chars::fullwidth_to_ascii(c) {
+            // `punct=true` 这档管"看着像标点、其实只是排版"的：，。！？；：
+            // 全角运算符（－＝＋＊／＜＞）虽然也算 ascii_punctuation，但它们在代码里
+            // 是语法不是标点——必须和字母数字走默认开启的那档，否则
+            // `x ＝ 1` 净化完还是错的，用户根本发现不了。
+            Some(a) if is_harmless_punct(a) == punct => a,
+            _ => c,
+        })
         .collect()
+}
+
+/// 这个半角符号属于"纯排版标点"，转不转都不影响程序运行。
+///
+/// 返回 `false` 的（运算符、括号、引号、下划线等）一旦以全角形式出现在
+/// 代码里就会破坏语法，所以归到默认必须处理的那一档。
+fn is_harmless_punct(c: char) -> bool {
+    matches!(c, ',' | '.' | '!' | '?' | ';' | ':' | '\'' | '"')
 }
 
 /// 合并硬回车。
@@ -580,15 +620,35 @@ mod tests {
     #[test]
     fn fullwidth_only_when_enabled() {
         let off = Plan {
-            fullwidth_ascii: false,
+            fullwidth_alnum: false,
+            fullwidth_punct: false,
             ..Plan::default()
         };
         assert_eq!(clean("\u{FF21}", &off), "\u{FF21}");
         let on = Plan {
-            fullwidth_ascii: true,
+            fullwidth_alnum: true,
+            fullwidth_punct: true,
             ..Plan::default()
         };
         assert_eq!(clean("\u{FF21}", &on), "A");
+    }
+
+    #[test]
+    fn fullwidth_operators_are_fixed_by_default_but_chinese_punct_is_not() {
+        // 这是产品上最容易踩的坑：全角减号看着像标点，其实是语法错误。
+        // 默认配置必须把它修掉，同时不动中文正文里的逗号句号。
+        let plan = Plan::default();
+        assert_eq!(clean("x = \u{FF0D}1", &plan), "x = -1", "全角减号应转半角");
+        assert_eq!(clean("x \u{FF1D} 1", &plan), "x = 1", "全角等号应转半角");
+        assert_eq!(clean("\u{FF08}a\u{FF09}", &plan), "(a)", "全角括号应转半角");
+        assert_eq!(
+            clean("\u{FF41}\u{FF42}\u{FF43}", &plan),
+            "abc",
+            "全角字母应转半角"
+        );
+
+        // 中文标点保持原样：转成 , . ! 只会让中文更难读。
+        assert_eq!(clean("你\u{FF0C}好\u{FF01}", &plan), "你\u{FF0C}好\u{FF01}");
     }
 
     #[test]
