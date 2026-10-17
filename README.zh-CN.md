@@ -33,6 +33,9 @@
 
 飞书文档、钉钉文档、Notion、编程助手、AI 聊天窗口的富文本剪贴板，是这类字符的高发区。
 
+**按报错原文查** → [常见报错速查表](docs/troubleshooting.md)
+**想看飞书这个具体场景的来龙去脉** → [从飞书复制代码为什么老是报错](docs/feishu-copy-paste.md)
+
 ## 安装
 
 去 [Releases](https://github.com/soybeanmilka/clipsift/releases) 下载
