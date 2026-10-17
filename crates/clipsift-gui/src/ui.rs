@@ -11,6 +11,7 @@
 
 use crate::state::{self, Event, Watcher};
 use crate::theme::{self, Mode, Palette};
+use crate::tray::{self, Tray, TrayAction};
 use clipsift_core::{apply, inspect, Plan};
 use eframe::egui;
 use std::time::{Duration, Instant};
@@ -25,6 +26,10 @@ pub struct App {
     hidden: bool,
     /// 用户明确要退出。只有它为 true 时才让 close 真的走。
     quitting: bool,
+    /// 右下角通知区的图标。建不出来就是 None，界面照常。
+    tray: Option<Tray>,
+    /// 托盘心跳线程起过没有（只起一次，见 `tray::spawn_heartbeat`）。
+    heartbeat_on: bool,
 
     // 统计
     cleaned_total: usize,
@@ -66,6 +71,10 @@ impl App {
             pending_theme: false,
             hidden: false,
             quitting: false,
+            // 必须在主线程（也就是这里）创建：托盘要挂在窗口的消息循环上，
+            // 换到别的线程建出来的托盘菜单点了没反应。
+            tray: Tray::new(),
+            heartbeat_on: false,
             cleaned_total: 0,
             chars_removed_total: 0,
             last_clean_at: None,
@@ -126,6 +135,54 @@ impl App {
         self.watcher = None;
     }
 
+    /// 处理一批托盘动作。
+    ///
+    /// 为什么不在托盘回调里直接改 App：回调是在 Windows 消息分发时触发的，
+    /// 那一刻 egui 可能正处在某一帧中间，直接改状态容易改到一半的界面。
+    /// 所以回调只负责把动作塞进队列，这里在每帧开头统一执行。
+    fn handle_tray(&mut self, ctx: &egui::Context, actions: Vec<TrayAction>) {
+        for action in actions {
+            crate::debug_log(&format!("[ui] 处理托盘动作 {action:?}"));
+            match action {
+                TrayAction::Show => {
+                    // 顺序不能反，也不能省：被 `Visible(false)` 藏起来的窗口，
+                    // 只发 Visible(true) 在 winit 里不一定真的 show（它内部有
+                    // "已经是可见的就不重复显示"的短路），所以先 Minimized(false)。
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                    self.hidden = false;
+                }
+                TrayAction::StartWatch => self.start(),
+                TrayAction::StopWatch => self.stop(),
+                TrayAction::CleanOnce => self.clean_once(),
+                TrayAction::Quit => {
+                    self.quitting = true;
+                    self.stop();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }
+        }
+    }
+
+    /// 把窗口藏到托盘。点 × 和点「收进托盘」都会走到这里。
+    fn hide_to_tray(&mut self, ctx: &egui::Context) {
+        // 藏之前确保守护在跑：初始状态本来就开着，但用户可能手动停过，
+        // 这时候点 × 不该变成"程序还活着但什么都不做"。
+        self.start();
+        self.hidden = true;
+        crate::debug_log(&format!("[ui] 收进托盘 tray={}", self.tray.is_some()));
+        if self.tray.is_some() {
+            // 有托盘：窗口彻底藏起来，任务栏上也不留按钮。
+            // 恢复靠托盘的左键/「显示窗口」，不会找不到。
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        } else {
+            // 没有托盘（非 Windows，或者托盘建不出来）：只能收进任务栏，
+            // 否则 `Visible(false)` 会让任务栏图标也消失，用户再也点不回来。
+            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+        }
+    }
+
     fn clean_once(&mut self) {
         match state::clipboard::read() {
             Ok(None) => {
@@ -173,30 +230,61 @@ impl eframe::App for App {
         #[cfg(debug_assertions)]
         crate::shot::tick(ctx);
 
+        if tray::debug_enabled() {
+            static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if n % 30 == 0 {
+                crate::debug_log(&format!(
+                    "[ui] 第 {n} 帧 hidden={} 重绘请求={:?}",
+                    self.hidden,
+                    ctx.cumulative_pass_nr()
+                ));
+            }
+        }
+
         self.pump_events(ctx);
+
+        // 托盘点击 / 菜单选择。必须在 pump_events 之后、画界面之前处理，
+        // 这样这一帧画出来的就是处理后的状态，不会闪一帧旧数据。
+        // 日志走 crate::debug_log（自己写文件），不依赖 stderr。
+        let dbg = tray::debug_enabled();
+        let actions = self.tray.as_ref().map(|t| t.poll(dbg)).unwrap_or_default();
+        if !actions.is_empty() {
+            ctx.request_repaint();
+            self.handle_tray(ctx, actions);
+        }
+        // 托盘菜单项的启用状态、悬停提示跟着界面状态走。
+        if let Some(t) = &self.tray {
+            t.sync(self.watcher.is_some(), self.cleaned_total);
+        }
+        // 托盘事件要靠 Windows 消息循环分发，而消息循环只在有新帧时才被驱动。
+        // 窗口藏起来之后 eframe 会跳过所有排定的重绘（request_repaint_after 失效），
+        // 所以用一个独立线程按节奏催帧，见 tray::spawn_heartbeat 的注释。
+        if self.tray.is_some() && !self.heartbeat_on {
+            self.heartbeat_on = true;
+            tray::spawn_heartbeat(ctx.clone());
+        }
+        // 没托盘时靠「窗口失焦→重新点回来」判断窗口是否回来了。
+        // 有托盘的话这条路走不通：窗口可能被别的程序盖住，因为「重新获得焦点」
+        // 并不等于「从托盘唤回来的」，误判会让 hidden 状态自己也乱。
+        if self.hidden
+            && self.tray.is_none()
+            && ctx.input(|i| i.viewport().focused.unwrap_or(false))
+        {
+            self.hidden = false;
+        }
 
         // 点右上角 × 默认不退出，而是藏起来继续在后台守着剪贴板。
         // 用户装这个工具就是为了"一直在"，关个窗口就把守护停了等于没装。
-        // 真要退出走界面上的「退出」，那条路设了 quitting 就不会被拦。
+        // 真要退出走界面上的「退出」或托盘菜单，那条路设了 quitting 就不会被拦。
         if ctx.input(|i| i.viewport().close_requested()) && !self.quitting {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            // 收进任务栏而不是彻底隐藏：`Visible(false)` 会把任务栏图标也弄没，
-            // 用户就再也点不回来了（只能去任务管理器杀进程）。最小化既满足
-            // "× 掉不退出、继续在后台跑"，又留了一个一目了然的入口。
-            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-            // 收进任务栏之前确保守护在跑：初始状态本来就开着，
-            // 但用户可能手动停过，这时候点 × 不该变成"程序还活着但什么都不做"。
-            self.start();
-            self.hidden = true;
+            self.hide_to_tray(ctx);
         }
         // 窗口藏起来之后，egui 默认不再重绘，后台线程发来的事件就没机会被收走，
         // 统计数字会停在藏起来那一刻。所以隐藏期间仍然按较低的频率推重绘。
         if self.hidden {
             ctx.request_repaint_after(Duration::from_millis(1000));
-        }
-        // 窗口重新显示出来时清掉标记（用户从任务栏点回来了）。
-        if self.hidden && ctx.input(|i| i.viewport().focused.unwrap_or(false)) {
-            self.hidden = false;
         }
 
         // 守护在跑的时候，状态条要显示秒数，得有个东西推着重画。
@@ -386,11 +474,14 @@ impl App {
                     self.stop();
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                 }
-                if ui.button("收进任务栏").clicked() {
-                    self.start();
-                    self.hidden = true;
-                    ui.ctx()
-                        .send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                // 有托盘就说"收进托盘"，没有才说"任务栏"——按钮上写的就是点下去发生的事。
+                let hide_label = if self.tray.is_some() {
+                    "收进托盘"
+                } else {
+                    "收进任务栏"
+                };
+                if ui.button(hide_label).clicked() {
+                    self.hide_to_tray(ui.ctx());
                 }
                 ui.separator();
                 if ui.button(self.mode.toggle().label()).clicked() {
@@ -432,6 +523,15 @@ impl App {
                 ui.label(egui::RichText::new("未运行").strong().color(p.text_dim));
                 ui.label(
                     egui::RichText::new("点下面的「开始守护」，之后复制进剪贴板的内容会自动清干净")
+                        .small()
+                        .color(p.text_faint),
+                );
+            }
+
+            // 托盘建不出来时说一声，用户才知道为什么点 × 之后只剩任务栏按钮。
+            if self.tray.is_none() {
+                ui.label(
+                    egui::RichText::new("（托盘不可用）")
                         .small()
                         .color(p.text_faint),
                 );

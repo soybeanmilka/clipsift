@@ -30,6 +30,8 @@ winresource = "0.1"
 [target.'cfg(windows)'.dependencies]
 # 读剪贴板。和 CLI 用同一个库，保证两边行为一致。
 arboard = { version = "3.4", default-features = false }
+tray-icon = { version = "0.24", default-features = false }
+uuid = { version = "1", default-features = false, features = ["v4"] }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_Registry",

@@ -18,11 +18,37 @@ mod reg;
 mod shot;
 mod state;
 mod theme;
+mod tray;
 mod ui;
 
 use eframe::egui;
 
+/// 写一行调试日志到 `CLIPSIFT_TRAY_LOG` 指定的文件。
+///
+/// 为什么不用 `eprintln`：release 版是 `windows_subsystem = "windows"`，
+/// stderr 根本不存在；debug 版被别人用 `Start-Process` 拉起来时 stderr 也常
+/// 被当成垃圾句柄丢掉，日志一条都看不到。排查托盘时唯一稳的是自己写文件。
+/// 每行都重新 open/append/close：量小（只在事件发生时写），换来的是进程被
+/// 强杀也不会丢缓冲，不会卡住文件。
+pub fn debug_log(msg: &str) {
+    if !tray::debug_enabled() {
+        return;
+    }
+    let Some(path) = std::env::var_os("CLIPSIFT_TRAY_LOG") else {
+        return;
+    };
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(f, "{msg}");
+    }
+}
+
 fn main() -> eframe::Result<()> {
+    debug_log(&format!("[start] pid={}", std::process::id()));
     let icon = load_icon();
     let mut viewport = egui::ViewportBuilder::default()
         .with_inner_size([760.0, 720.0])
