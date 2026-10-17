@@ -280,6 +280,11 @@ cargo test
   clipboard daemon works automatically
 - All three platform packages were downloaded back from GitHub and re-verified
 
+## Cutting a release
+
+Full steps for version numbers, tags, the winget manifest and SHA256: [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).
+The one rule that matters: **the SHA256 in the winget manifest must come from the CI artifact** — a locally built installer has different bytes and the hash won't match.
+
 ## Desktop GUI
 
 If you'd rather not touch a terminal, run `clipsift-gui`: double-click, flip rule switches, and let the

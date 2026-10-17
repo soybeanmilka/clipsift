@@ -283,6 +283,11 @@ cargo test
 - 端到端验证过：文件级两次净化 SHA256 一致、剪贴板守护进程自动生效
 - 三个平台的发行包都从 GitHub 下载回来重新验证过
 
+## 发布新版本
+
+版本号、tag、winget 清单、SHA256 的完整步骤见 [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md)。
+核心一条：**winget 清单里的 SHA256 必须取 CI 产物**，本地编的安装包字节不同，哈希对不上。
+
 ## 图形界面
 
 不想开命令行就装 `clipsift-gui`：双击打开，规则一勾就生效，守护在后台盯着剪贴板。
