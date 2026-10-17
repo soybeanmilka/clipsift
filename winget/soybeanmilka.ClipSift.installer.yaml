@@ -22,6 +22,6 @@ ReleaseDate: 2026-10-17
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/soybeanmilka/clipsift/releases/download/v0.2.1/ClipSift-setup.exe
-    InstallerSha256: 537D877CDEA35CA57CF2853E0AEB03DD1D1E16217E41459F81E261AC8C921F01
+    InstallerSha256: 5054DD16908C6E3C35FF83FAB8664B24E1AF4D79C0B6FF279847285953587AFC
 ManifestType: installer
 ManifestVersion: 1.6.0
