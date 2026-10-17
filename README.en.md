@@ -81,8 +81,8 @@ Build the Windows installer yourself (needs [Inno Setup 6](https://jrsoftware.or
 
 ```powershell
 cargo build --release
-& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.2.1 installer\clipsift.iss
-# output: dist\ClipSift-0.2.1-setup.exe
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.3.0 installer\clipsift.iss
+# output: dist\ClipSift-0.3.0-setup.exe
 ```
 
 ## Usage

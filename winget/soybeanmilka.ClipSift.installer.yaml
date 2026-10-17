@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 
 PackageIdentifier: soybeanmilka.ClipSift
-PackageVersion: 0.2.1
+PackageVersion: 0.3.0
 InstallerType: inno
 Scope: user
 # 安装包是 Inno Setup 做的，winget 能直接认出来（也能自己调静默参数），
@@ -21,7 +21,8 @@ MinimumOSVersion: 10.0.0.0
 ReleaseDate: 2026-10-17
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/soybeanmilka/clipsift/releases/download/v0.2.1/ClipSift-setup.exe
+    InstallerUrl: https://github.com/soybeanmilka/clipsift/releases/download/v0.3.0/ClipSift-setup.exe
+    # TODO: 0.3.0 发布后用 CI 产物重算（本地编的字节不同，见 RELEASE-CHECKLIST.md）
     InstallerSha256: 5054DD16908C6E3C35FF83FAB8664B24E1AF4D79C0B6FF279847285953587AFC
 ManifestType: installer
 ManifestVersion: 1.6.0

@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
 
 PackageIdentifier: soybeanmilka.ClipSift
-PackageVersion: 0.2.1
+PackageVersion: 0.3.0
 PackageLocale: zh-CN
 Publisher: soybeanmilka
 PublisherUrl: https://github.com/soybeanmilka
@@ -35,6 +35,6 @@ Tags:
   - zero-width-space
   - 剪贴板
   - 零宽空格
-ReleaseNotesUrl: https://github.com/soybeanmilka/clipsift/releases/tag/v0.2.1
+ReleaseNotesUrl: https://github.com/soybeanmilka/clipsift/releases/tag/v0.3.0
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0
