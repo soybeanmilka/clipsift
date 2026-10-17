@@ -38,21 +38,21 @@
 
 ## 安装
 
-### 方式一：下载可执行文件（推荐）
+去 [Releases](https://github.com/soybeanmilka/clipsift/releases) 下载对应平台的包：
 
-去 [Releases](https://github.com/soybeanmilka/clipsift/releases) 下载对应平台的文件，
-解压后把 `clipsift` 放到 `PATH` 里的任意目录（Windows 推荐 `C:\Users\<你>\.cargo\bin`
-或任意你习惯的位置）。
+| 平台 | 文件 | 装法 |
+| --- | --- | --- |
+| Windows x64 | `clipsift-windows-x86_64.zip` | 解压出 `clipsift.exe`，放进 `PATH`（如 `C:\Users\<你>\.cargo\bin`） |
+| Linux x64 | `clipsift-linux-x86_64.tar.gz` | `tar -xzf` 后 `sudo mv clipsift /usr/local/bin/` |
+| macOS Apple Silicon | `clipsift-macos-aarch64.tar.gz` | `tar -xzf` 后 `mv clipsift ~/.local/bin/`；首次运行可能要 `xattr -d com.apple.quarantine clipsift` |
 
-Windows 单文件 exe，无需安装任何运行库。
+单个可执行文件，无运行库依赖。
 
-### 方式二：从源码编译
+从源码编译（Rust 1.74+）：
 
 ```bash
 cargo install --path crates/clipsift-cli
 ```
-
-需要 Rust 1.74+。
 
 ## 用法
 

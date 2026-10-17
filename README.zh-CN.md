@@ -38,11 +38,15 @@
 
 ## 安装
 
-去 [Releases](https://github.com/soybeanmilka/clipsift/releases) 下载
-`clipsift-windows-x86_64.zip`，解压后把 `clipsift.exe` 放进 `PATH` 里的任意目录
-（Windows 推荐 `C:\Users\<你>\.cargo\bin`）。
+去 [Releases](https://github.com/soybeanmilka/clipsift/releases) 下载对应平台的包：
 
-单个 exe，1.3 MB，无需安装任何运行库。
+| 平台 | 文件 | 装法 |
+| --- | --- | --- |
+| Windows x64 | `clipsift-windows-x86_64.zip` | 解压出 `clipsift.exe`，放进 `PATH`（如 `C:\Users\<你>\.cargo\bin`） |
+| Linux x64 | `clipsift-linux-x86_64.tar.gz` | `tar -xzf` 后 `sudo mv clipsift /usr/local/bin/` |
+| macOS Apple Silicon | `clipsift-macos-aarch64.tar.gz` | `tar -xzf` 后 `mv clipsift ~/.local/bin/` |
+
+单个可执行文件，无运行库依赖。
 
 从源码编译：
 
