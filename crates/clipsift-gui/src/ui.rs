@@ -169,6 +169,10 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // 开发期截图（只在 debug 构建里存在，见 shot.rs）。不设环境变量时是空操作。
+        #[cfg(debug_assertions)]
+        crate::shot::tick(ctx);
+
         self.pump_events(ctx);
 
         // 点右上角 × 默认不退出，而是藏起来继续在后台守着剪贴板。
@@ -230,57 +234,135 @@ impl eframe::App for App {
                 let avail = ui.available_height();
                 // 卡片内边距 12 上下各一次，滚动区只能吃剩下的部分。
                 let inner_h = (avail - 26.0).max(120.0);
-                ui.horizontal_top(|ui| {
-                    let total = ui.available_width();
-                    let left_w = (total * 0.45).clamp(260.0, 360.0);
-                    let gap = 10.0;
+                let total = ui.available_width();
+                // 两栏宽度必须正好把 total 分完：以前右栏是"左栏占 45%，
+                // 剩下的都给右栏"，可一旦左栏被内容撑宽，剩下的就是负数，
+                // 右栏连同内容一起被推出窗口右缘 —— 看起来就是"右边被切掉一截"。
+                let (left_w, right_w) = column_widths(total);
 
+                ui.horizontal_top(|ui| {
                     // 两栏都用一个定高的槽：Frame 撑死也就 inner_h + 24，
                     // 内容再多由里面的 ScrollArea 吃掉。不这么钉死，
                     // 内容长的一边会把 Frame 撑高，另一边就留一大块空白。
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(left_w, avail),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| {
-                            theme::card_frame(&p).show(ui, |ui| {
-                                ui.set_width(left_w - 24.0);
-                                egui::ScrollArea::vertical()
-                                    .id_salt("rules_scroll")
-                                    .auto_shrink([false, false])
-                                    .max_height(inner_h)
-                                    .show(ui, |ui| {
-                                        self.rules_card(ui, &p);
-                                    });
-                            });
-                        },
-                    );
-
-                    ui.add_space(gap);
-
-                    let right_w = (total - left_w - gap).max(200.0);
-                    ui.allocate_ui_with_layout(
-                        egui::vec2(right_w, avail),
-                        egui::Layout::top_down(egui::Align::Min),
-                        |ui| {
-                            theme::card_frame(&p).show(ui, |ui| {
-                                ui.set_width(right_w - 24.0);
-                                egui::ScrollArea::vertical()
-                                    .id_salt("play_scroll")
-                                    .auto_shrink([false, false])
-                                    .max_height(inner_h)
-                                    .show(ui, |ui| {
-                                        self.playground_card(ui, &p);
-                                    });
-                            });
-                        },
-                    );
+                    column_card(ui, &p, left_w, avail, inner_h, "rules_scroll", |ui| {
+                        self.rules_card(ui, &p);
+                    });
+                    ui.add_space(COLUMN_GAP);
+                    column_card(ui, &p, right_w, avail, inner_h, "play_scroll", |ui| {
+                        self.playground_card(ui, &p);
+                    });
                 });
             });
     }
 }
 
+/// 两栏之间的空隙。
+const COLUMN_GAP: f32 = 10.0;
+
+/// 一栏窄过这个宽度就摆不下东西了（中文标签一行都放不下）。
+const MIN_COLUMN_W: f32 = 180.0;
+
+/// 左栏再宽也不超过这个值——规则卡不需要那么宽，宽了纯浪费试衣间的空间。
+const MAX_LEFT_COLUMN_W: f32 = 360.0;
+
+/// 左右两栏各分多宽。
+///
+/// 硬约束是 `left + COLUMN_GAP + right == total`：只要这条件成立，
+/// 右栏就永远在窗口里面，不可能被切。原来的写法是"左栏 45%、
+/// 右栏 = 剩下的，最少 200"，那个 `max(200)` 在总宽不够时会让两栏加起来
+/// 比可用宽度还宽，于是右栏冲出窗口。
+fn column_widths(total: f32) -> (f32, f32) {
+    let total = total.max(0.0);
+    // 连两栏都放不下就只留一栏，不然两边都是没法用的窄条。
+    if total <= COLUMN_GAP + 2.0 * MIN_COLUMN_W {
+        return (total, 0.0);
+    }
+    let left = (total * 0.45).clamp(MIN_COLUMN_W, MAX_LEFT_COLUMN_W);
+    let right = total - left - COLUMN_GAP;
+    if right >= MIN_COLUMN_W {
+        (left, right)
+    } else {
+        // 左栏偏宽挤掉了右栏：宁可对半分，也不要一边富一边穷。
+        let each = (total - COLUMN_GAP) / 2.0;
+        (each, each)
+    }
+}
+
+/// 画一张「定宽定高」的卡片：外层 `card_frame` + 内部竖向滚动。
+///
+/// 宽度用 `set_min_width` / `set_max_width` 双向钉死，而不是只 `set_width`：
+/// 只设下限的话，内容（比如不换行的长提示、`Grid` 的第二列）比槽宽时
+/// Frame 会跟着长胖，把隔壁那栏顶出窗口。钉住上限后，超宽内容只能换行。
+fn column_card(
+    ui: &mut egui::Ui,
+    p: &Palette,
+    width: f32,
+    height: f32,
+    inner_h: f32,
+    id: &str,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    if width <= 0.0 {
+        return;
+    }
+    // card_frame 的 margin 是 12，左右各一份。
+    let inner_w = (width - 24.0).max(60.0);
+    ui.allocate_ui_with_layout(
+        egui::vec2(width, height),
+        egui::Layout::top_down(egui::Align::Min),
+        |ui| {
+            ui.set_min_width(width);
+            ui.set_max_width(width);
+            theme::card_frame(p).show(ui, |ui| {
+                ui.set_min_width(inner_w);
+                ui.set_max_width(inner_w);
+                egui::ScrollArea::vertical()
+                    .id_salt(id)
+                    .auto_shrink([false, false])
+                    .max_height(inner_h)
+                    .show(ui, add_contents);
+            });
+        },
+    );
+}
+
+/// 规则卡里的一行：复选框一行，说明折到下一行。
+///
+/// 为什么不再"复选框 + 说明"并排：说明文字长短差很多（最短 8 个字、
+/// 最长 30 个字），并排就得给说明留固定宽度，窄窗口下只能换行成两行，
+/// 宽窗口下又空一大截。更糟的是原来用 `egui::Grid`——它的列宽只增不减，
+/// 长说明直接把卡片撑出窗口。现在统一"复选框在上、说明在下"，
+/// 说明按卡片宽度自动换行，窗口拉多窄都不会溢出。
+fn rule_row(
+    ui: &mut egui::Ui,
+    p: &Palette,
+    add_label: impl FnOnce(&mut egui::Ui),
+    hint: &str,
+    mono: bool,
+) {
+    add_label(ui);
+    let mut rich = egui::RichText::new(hint).small().color(p.text_dim);
+    if mono {
+        rich = rich.monospace();
+    }
+    ui.horizontal(|ui| {
+        // 缩进到复选框文字的左边缘，看着还是一组的。
+        ui.add_space(18.0);
+        ui.add(egui::Label::new(rich).wrap());
+    });
+    ui.add_space(2.0);
+}
+
 impl App {
     fn header(&mut self, ui: &mut egui::Ui, p: &Palette) {
+        // 那句说明有 18 个汉字，窗口窄的时候要是还硬塞在标题那一行，
+        // 就会顶到右边的按钮上（两个都哭，谁也看不清）。宽度够并排，
+        // 不够就折到第二行。
+        let subtitle = "复制粘贴时自动清掉零宽空格、伪空格、弯引号";
+        // 并排大约要 700px：标题 + 版本号 + 说明 + 三个按钮。留到 860 是余量，
+        // 默认 760 宽的窗口里并排会紧贴着「浅色」，不如干脆折成一行。
+        let wide = ui.available_width() >= 860.0;
+
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new("ClipSift")
@@ -293,11 +375,9 @@ impl App {
                     .small()
                     .color(p.text_faint),
             );
-            ui.label(
-                egui::RichText::new("复制粘贴时自动清掉零宽空格、伪空格、弯引号")
-                    .small()
-                    .color(p.text_dim),
-            );
+            if wide {
+                ui.label(egui::RichText::new(subtitle).small().color(p.text_dim));
+            }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.button("退出").clicked() {
@@ -319,6 +399,9 @@ impl App {
                 }
             });
         });
+        if !wide {
+            ui.label(egui::RichText::new(subtitle).small().color(p.text_dim));
+        }
     }
 
     fn status_card(&mut self, ui: &mut egui::Ui, p: &Palette) {
@@ -372,7 +455,8 @@ impl App {
         ui.add_space(6.0);
 
         // 三个统计数字横排，比一行小字堆着好看。
-        ui.horizontal(|ui| {
+        // 用 wrapped 版本：窗口窄的时候宁可换行，也别把「最后一次」挤出卡片。
+        ui.horizontal_wrapped(|ui| {
             stat(ui, p, &self.cleaned_total.to_string(), "已净化");
             ui.add_space(18.0);
             stat(ui, p, &self.chars_removed_total.to_string(), "清掉字符");
@@ -398,7 +482,8 @@ impl App {
         }
 
         ui.add_space(10.0);
-        ui.horizontal(|ui| {
+        // 三个按钮在窗口窄的时候会整行超出去，wrapped 让它折行。
+        ui.horizontal_wrapped(|ui| {
             let running = self.watcher.is_some();
             let label = if running {
                 "停止守护"
@@ -435,91 +520,103 @@ impl App {
 
         let before = self.plan.clone();
 
-        egui::Grid::new("rules_grid")
-            .num_columns(2)
-            .spacing([14.0, 5.0])
-            .min_col_width(120.0)
-            .show(ui, |ui| {
+        // 原来这里是个 `egui::Grid`，两列排"复选框 + 说明"。Grid 的第二列
+        // 不会自动换行，长说明按原始宽度把整张卡撑胖，右边那栏就被顶出窗口。
+        // 现在每行自己量：说明文字塞得下就并排，塞不下就折到复选框下面一行。
+        // 窗口拉宽拉窄都不会溢出。
+        rule_row(
+            ui,
+            p,
+            |ui| {
                 ui.checkbox(&mut self.plan.invisible, "隐形字符");
-                ui.label(
-                    egui::RichText::new("零宽空格、bidi 覆盖符、隐形标签")
-                        .small()
-                        .color(p.text_dim),
-                );
-                ui.end_row();
+            },
+            "零宽空格、bidi 覆盖符、隐形标签",
+            false,
+        );
 
+        rule_row(
+            ui,
+            p,
+            |ui| {
                 ui.checkbox(&mut self.plan.normalize_spaces, "伪空格");
-                ui.label(
-                    egui::RichText::new("不间断空格、全角空格 → 普通空格")
-                        .small()
-                        .color(p.text_dim),
-                );
-                ui.end_row();
+            },
+            "不间断空格、全角空格 → 普通空格",
+            false,
+        );
 
+        rule_row(
+            ui,
+            p,
+            |ui| {
                 ui.checkbox(&mut self.plan.confusables, "弯引号 / 破折号");
-                ui.label(
-                    egui::RichText::new(
-                        "\u{2018}abc\u{2019} \u{201C}abc\u{201D} \u{2014} \u{2013} \u{2026}",
-                    )
-                    .small()
-                    .monospace()
-                    .color(p.text_dim),
-                );
-                ui.end_row();
+            },
+            "\u{2018}abc\u{2019} \u{201C}abc\u{201D} \u{2014} \u{2013} \u{2026}",
+            true,
+        );
 
+        rule_row(
+            ui,
+            p,
+            |ui| {
                 ui.checkbox(&mut self.plan.fullwidth_alnum, "全角字母数字转半角");
-                ui.label(
-                    egui::RichText::new("ＡＢＣ１２３－（）→ ABC123-()")
-                        .small()
-                        .monospace()
-                        .color(p.text_dim),
-                );
-                ui.end_row();
+            },
+            "ＡＢＣ１２３－（）→ ABC123-()",
+            true,
+        );
 
-                // 单独一档：中文正文里 ！？这些本来就是全角，转成半角反而难看。
+        // 单独一档：中文正文里 ！？这些本来就是全角，转成半角反而难看。
+        rule_row(
+            ui,
+            p,
+            |ui| {
                 ui.checkbox(&mut self.plan.fullwidth_punct, "全角标点转半角");
-                ui.label(
-                    egui::RichText::new("，。！？→ ,.!?（中文正文一般别开）")
-                        .small()
-                        .color(p.text_dim),
-                );
-                ui.end_row();
+            },
+            "，。！？→ ,.!?（中文正文一般别开）",
+            false,
+        );
 
+        rule_row(
+            ui,
+            p,
+            |ui| {
                 ui.checkbox(&mut self.plan.collapse_whitespace, "压缩多余空格");
-                ui.label(
-                    egui::RichText::new("连续空格合并成一个，行首缩进原样保留")
-                        .small()
-                        .color(p.text_dim),
-                );
-                ui.end_row();
+            },
+            "连续空格合并成一个，行首缩进原样保留",
+            false,
+        );
 
+        rule_row(
+            ui,
+            p,
+            |ui| {
                 ui.checkbox(&mut self.plan.trim_trailing, "去掉行尾空格");
-                ui.label(
-                    egui::RichText::new("每行末尾的空白删掉")
-                        .small()
-                        .color(p.text_dim),
-                );
-                ui.end_row();
+            },
+            "每行末尾的空白删掉",
+            false,
+        );
 
+        rule_row(
+            ui,
+            p,
+            |ui| {
                 ui.checkbox(&mut self.plan.strip_control, "控制字符");
-                ui.label(
-                    egui::RichText::new("删掉不可见的控制字符")
-                        .small()
-                        .color(p.text_dim),
-                );
-                ui.end_row();
+            },
+            "删掉不可见的控制字符",
+            false,
+        );
 
+        rule_row(
+            ui,
+            p,
+            |ui| {
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut self.plan.merge_hard_returns, "合并硬回车");
                     ui.label(egui::RichText::new("⚠").color(p.warning));
                 });
-                ui.label(
-                    egui::RichText::new("单换行变空格，适合把 PDF 正文拉成一段；重复处理结果会变")
-                        .small()
-                        .color(p.text_dim),
-                );
-                ui.end_row();
-            });
+            },
+            "单换行变空格，适合把 PDF 正文拉成一段；重复处理结果会变",
+            false,
+        );
 
         ui.add_space(6.0);
         if ui.button("恢复默认").clicked() {
@@ -562,7 +659,7 @@ impl App {
         }
 
         ui.add_space(4.0);
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             if ui.button("读剪贴板填进来").clicked() {
                 if let Ok(Some(t)) = state::clipboard::read() {
                     self.sample = t;
@@ -829,5 +926,63 @@ fn note(cp: u32) -> &'static str {
         0xFF01..=0xFF5E => "全角字符",
         0xE0000..=0xE007F => "隐形标签字符",
         _ => "可疑字符",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 左栏 + 空隙 + 右栏 必须正好等于可用宽度。
+    ///
+    /// 这条是「右栏被切掉」那个 bug 的回归测试：只要三者加起来比可用宽度多，
+    /// 右栏就会跑到窗口外面去。
+    #[test]
+    fn columns_fill_available_width_exactly() {
+        let widths = [
+            0.0_f32, 120.0, 300.0, 360.0, 370.0, 400.0, 460.0, 500.0, 592.0, 700.0, 760.0, 982.0,
+            1440.0, 3000.0,
+        ];
+        for total in widths {
+            let (left, right) = column_widths(total);
+            assert!(left >= 0.0, "total={total} left={left}");
+            assert!(right >= 0.0, "total={total} right={right}");
+            if right > 0.0 {
+                let sum = left + COLUMN_GAP + right;
+                assert!(
+                    (sum - total).abs() < 0.01,
+                    "total={total} 分出来的宽度是 {sum}（left={left} right={right}）"
+                );
+            } else {
+                // 太窄只留一栏，这时候那一栏得吃满整行。
+                assert!((left - total).abs() < 0.01, "total={total} left={left}");
+            }
+        }
+    }
+
+    /// 默认窗口（760）和最小窗口（620）下，右栏都得有能用的宽度。
+    #[test]
+    fn both_columns_are_usable_at_supported_sizes() {
+        for window in [760.0_f32, 620.0] {
+            // CentralPanel 左右各 14px 外边距。
+            let total = window - 28.0;
+            let (left, right) = column_widths(total);
+            assert!(
+                left >= MIN_COLUMN_W,
+                "窗口 {window} 时左栏只有 {left}，放不下规则"
+            );
+            assert!(
+                right >= 200.0,
+                "窗口 {window} 时右栏只有 {right}，试衣间会被挤没了"
+            );
+            assert!(right > left, "窗口 {window} 时右栏（试衣间）应该比左栏宽");
+        }
+    }
+
+    /// 宽窗口下左栏不能无限变大，否则试衣间被浪费。
+    #[test]
+    fn left_column_is_capped() {
+        let (left, _) = column_widths(4000.0);
+        assert!(left <= MAX_LEFT_COLUMN_W);
     }
 }

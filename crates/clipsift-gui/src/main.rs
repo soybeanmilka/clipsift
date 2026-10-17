@@ -14,6 +14,8 @@
 
 mod fonts;
 mod reg;
+#[cfg(debug_assertions)]
+mod shot;
 mod state;
 mod theme;
 mod ui;
