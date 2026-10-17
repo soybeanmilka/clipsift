@@ -272,7 +272,7 @@ cargo test
 
 - 30 unit tests covering each rule and their combinations, including the full-width operator/punctuation split (`clipsift-core`)
 - 9 unit tests covering the config file, `--off` switches and the autostart entry (`clipsift-cli`)
-- 10 unit tests covering the watcher thread lifecycle and clipboard state machine (`clipsift-gui`)
+- 13 unit tests covering the watcher thread lifecycle, clipboard state machine, theme contrast and column sizing (`clipsift-gui`)
 - 7 property tests, including **10,000 random dirty strings checked for idempotence**
   (merge-related plans skipped; all others must satisfy `apply(apply(x)) == apply(x)`)
 - `cargo clippy --all-targets -- -D warnings` is clean
@@ -290,8 +290,12 @@ watcher sit on the clipboard in the background.
 - **Playground** — paste text and immediately see "which character → what it becomes",
   sorted by severity (invisible characters first, then full-width operators that break syntax)
 - **Rule switches** — take effect on click; changing them while the watcher runs swaps rules live
-- **Closing the window doesn't quit** — × minimizes to the taskbar and keeps watching;
-  only the Exit button really stops it
+- **Closing the window doesn't quit** — × hides to the system tray and keeps watching
+  (with a tray icon the window hides completely, no taskbar button either; on non-Windows
+  platforms or when the tray can't be created it falls back to the taskbar). Only the
+  Exit button or the tray menu's Quit really stops it
+- **Tray menu** — right-click the icon to show the window, start/stop the watcher,
+  clean the clipboard once, or quit; the tooltip shows "watching/stopped · N cleaned"
 - **Start with Windows** — one checkbox writes the HKCU Run entry
 - Light/dark themes with an embedded CJK font, no reliance on system fonts
 
