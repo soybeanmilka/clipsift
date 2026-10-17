@@ -54,7 +54,7 @@ jobs:
           $bin = "target/${{ matrix.target }}/release/${{ env.BIN }}.exe"
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item -Path $bin -Destination "dist/${{ env.BIN }}.exe"
-          Copy-Item -Path @("README.md", "LICENSE", "README.zh-CN.md") -Destination dist
+          Copy-Item -Path @("README.md", "README.en.md", "LICENSE") -Destination dist
           Copy-Item -Path "docs" -Destination dist -Recurse
           Compress-Archive -Path "dist/*" -DestinationPath ${{ matrix.artifact }}
 
@@ -63,7 +63,7 @@ jobs:
         run: |
           mkdir -p dist
           cp "target/${{ matrix.target }}/release/${BIN}" dist/
-          cp README.md LICENSE README.zh-CN.md dist/
+          cp README.md README.en.md LICENSE dist/
           cp -r docs dist/
           chmod +x "dist/${BIN}"
           tar -czf "${{ matrix.artifact }}" -C dist .

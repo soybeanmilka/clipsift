@@ -2,7 +2,7 @@
 
 > 从复制粘贴里筛掉隐形字符：零宽空格、伪空格、弯引号、全角字母……
 
-**中文说明见 [README.zh-CN.md](README.zh-CN.md)** | [English](README.md)
+**[English](README.en.md)** | 中文
 
 **复制网页/AI 聊天/PDF 里的 C++ 代码，编译报 `stray '\342' in program`？**
 **从飞书文档复制 Python 代码，`IndentationError`？**
