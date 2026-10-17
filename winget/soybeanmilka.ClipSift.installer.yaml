@@ -1,0 +1,27 @@
+# Created with YamlCreate.ps1 v2.4.1
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+
+PackageIdentifier: soybeanmilka.ClipSift
+PackageVersion: 0.2.1
+InstallerType: inno
+Scope: user
+# 安装包是 Inno Setup 做的，winget 能直接认出来（也能自己调静默参数），
+# 这里还是写清楚，免得解析器走通用分支。
+InstallModes:
+  - interactive
+  - silent
+  - silentWithProgress
+InstallerSwitches:
+  Silent: /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+  SilentWithProgress: /SILENT /SUPPRESSMSGBOXES /NORESTART
+  Custom: /NORESTART
+UpgradeBehavior: install
+# 卸载走 Inno 自带的 unins000.exe，winget uninstall 能找到。
+MinimumOSVersion: 10.0.0.0
+ReleaseDate: 2026-10-17
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/soybeanmilka/clipsift/releases/download/v0.2.1/ClipSift-setup.exe
+    InstallerSha256: 537D877CDEA35CA57CF2853E0AEB03DD1D1E16217E41459F81E261AC8C921F01
+ManifestType: installer
+ManifestVersion: 1.6.0

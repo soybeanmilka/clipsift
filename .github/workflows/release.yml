@@ -25,6 +25,7 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: clipsift-windows-x86_64.zip
+            installer: ClipSift-setup.exe
             gui: true
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
@@ -52,6 +53,30 @@ jobs:
       - name: Build GUI (Windows only)
         if: matrix.gui
         run: cargo build --release --target ${{ matrix.target }} --bin clipsift-gui
+
+      # 安装包用 Inno Setup 编译。runner 上预装过 Inno Setup 6，
+      # 但它不在 PATH 里，得按固定路径找。
+      - name: Build installer (Windows only)
+        if: matrix.gui
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $iscc = "C:\Program Files\Inno Setup 6\ISCC.exe"
+          }
+          if (-not (Test-Path $iscc)) {
+            throw "找不到 Inno Setup 的 ISCC.exe，安装包没编出来"
+          }
+          $ver = "${{ github.ref_name }}".TrimStart("v")
+          & $iscc "/DAppVersion=$ver" "/DSourceDir=..\target\${{ matrix.target }}\release" "installer\clipsift.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup 编译失败，退出码 $LASTEXITCODE" }
+          # 输出是 dist\ClipSift-<ver>-setup.exe，改名成不带版本号的文件名挂到 Release 上：
+          # 用户拿到的永久链接不会变，装完看到的产品名和版本号由安装程序自己报。
+          $setup = Get-ChildItem "dist\ClipSift-*-setup.exe" | Select-Object -First 1
+          if (-not $setup) { throw "没找到 Inno Setup 的输出文件" }
+          Copy-Item $setup.FullName "${{ matrix.installer }}"
+          # 从 dist 里挪走：后面的 zip 打包是 dist/*，留着会把安装包塞进免安装包里。
+          Remove-Item $setup.FullName -Force
 
       # ---- 打包：Windows 用 zip，其他用 tar.gz ----
       - name: Package (Windows)
@@ -82,7 +107,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}
+            ${{ matrix.installer }}
 
   release:
     name: publish release
@@ -105,24 +132,30 @@ jobs:
           files: artifacts/*
           generate_release_notes: true
           body: |
-            ## 安装
+            ## Windows：双击安装（推荐）
 
-            下载对应平台的文件解压。Windows 包里有两个程序：
+            下载 **`ClipSift-setup.exe`** 双击，一路下一步就行。
+            装完直接能用，卸载去「设置 → 应用 → 已安装的应用」找 ClipSift。
 
-            - `clipsift-gui.exe` —— 图形界面，双击就能用（推荐）
-            - `clipsift.exe` —— 命令行，放进 `PATH` 即可
+            - 装到当前用户目录，**不需要管理员权限**，不弹 UAC
+            - 安装时可勾选「开机自动启动」「创建桌面快捷方式」
+            - 卸载干净：程序文件、开始菜单、桌面图标、自启项一起清掉
+            - 卸载时问一句要不要保留你的规则设置
 
-            | 平台 | 文件 |
-            | --- | --- |
-            | Windows x64 | `clipsift-windows-x86_64.zip` |
-            | Linux x64 | `clipsift-linux-x86_64.tar.gz` |
-            | macOS Apple Silicon | `clipsift-macos-aarch64.tar.gz` |
+            ## 其他方式
 
-            ## 最快上手
+            | 平台 | 文件 | 说明 |
+            | --- | --- | --- |
+            | Windows x64 | `clipsift-windows-x86_64.zip` | 免安装版，解压即用 |
+            | Linux x64 | `clipsift-linux-x86_64.tar.gz` | 命令行 |
+            | macOS Apple Silicon | `clipsift-macos-aarch64.tar.gz` | 命令行 |
+
+            ## 命令行用法
 
             ```bash
-            clipsift watch        # 常驻后台，每次复制自动净化
-            clipsift --list-rules # 看有哪些规则
+            clipsift watch         # 常驻后台，每次复制自动净化
+            clipsift once          # 只净化一次剪贴板
+            clipsift --list-rules  # 看有哪些规则
             ```
 
             详见 [README](https://github.com/soybeanmilka/clipsift#readme)。

@@ -1,0 +1,40 @@
+# Created with YamlCreate.ps1 v2.4.1
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+
+PackageIdentifier: soybeanmilka.ClipSift
+PackageVersion: 0.2.1
+PackageLocale: zh-CN
+Publisher: soybeanmilka
+PublisherUrl: https://github.com/soybeanmilka
+PublisherSupportUrl: https://github.com/soybeanmilka/clipsift/issues
+PackageName: ClipSift
+PackageUrl: https://github.com/soybeanmilka/clipsift
+License: MIT
+LicenseUrl: https://github.com/soybeanmilka/clipsift/blob/main/LICENSE
+Copyright: Copyright (c) 2025 soybeanmilka
+ShortDescription: 从复制粘贴里筛掉隐形字符：零宽空格、伪空格、弯引号、全角字母
+Description: |-
+  ClipSift 在后台盯着剪贴板，把复制来的隐形字符自动去掉。
+
+  治的是这些毛病：从网页复制的 C++ 代码编译报 stray '\342'；从飞书文档复制的
+  Python 代码报 IndentationError；Word 里复制的代码满屏语法错误；Excel 导出的
+  CSV 用 VLOOKUP 死活匹配不上看着一模一样的数字。
+
+  真凶是 U+200B 零宽空格、U+00A0 不间断空格、U+201C/U+201D 弯引号、全角标点
+  这类肉眼看不见、但字节完全不同的字符。
+
+  功能：图形界面和命令行都有；8 条规则可单独开关；开机自启；浅深色主题。
+Tags:
+  - clipboard
+  - copy-paste
+  - nbsp
+  - sanitizer
+  - text-cleaner
+  - unicode
+  - zero-width
+  - zero-width-space
+  - 剪贴板
+  - 零宽空格
+ReleaseNotesUrl: https://github.com/soybeanmilka/clipsift/releases/tag/v0.2.1
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

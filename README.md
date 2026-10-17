@@ -38,32 +38,48 @@
 
 ## 安装
 
-去 [Releases](https://github.com/soybeanmilka/clipsift/releases) 下载对应平台的包：
+### Windows：双击安装（推荐）
+
+去 [Releases](https://github.com/soybeanmilka/clipsift/releases) 下载 **`ClipSift-setup.exe`**，双击，一路下一步。
+
+或者在命令行里：
+
+```powershell
+winget install soybeanmilka.ClipSift
+```
+
+装完是这样：
+
+- 装到当前用户目录（`%LOCALAPPDATA%\Programs\ClipSift`），**不需要管理员权限**，不弹 UAC
+- 安装时可以勾「开机自动启动」「创建桌面快捷方式」
+- 想卸载就去「设置 → 应用 → 已安装的应用」找 ClipSift，点卸载；
+  程序文件、开始菜单、桌面图标、自启项一起清掉，还会问一句要不要保留你的规则设置
+
+想免安装的话，`clipsift-windows-x86_64.zip` 解压即用。
+
+### 其他平台
 
 | 平台 | 文件 | 装法 |
 | --- | --- | --- |
-| Windows x64 | `clipsift-windows-x86_64.zip` | 解压后双击 `clipsift-gui.exe` 直接用；或把 `clipsift.exe` 放进 `PATH` |
 | Linux x64 | `clipsift-linux-x86_64.tar.gz` | `tar -xzf` 后 `sudo mv clipsift /usr/local/bin/` |
 | macOS Apple Silicon | `clipsift-macos-aarch64.tar.gz` | `tar -xzf` 后 `mv clipsift ~/.local/bin/`；首次运行可能要 `xattr -d com.apple.quarantine clipsift` |
 
 单个可执行文件，无运行库依赖。
 
-<details>
-<summary>不想看命令行？Windows 双击 <code>clipsift-gui.exe</code> 就行</summary>
-
 ![ClipSift 图形界面](docs/images/gui.png)
-
-- 打开就在净化，没有"启动"按钮要你点 —— 关掉窗口 = 退出
-- 左边 8 个开关点了立刻生效，右边"试一下"实时看差别
-- 拿不准某个字符是什么？下面会列出码点和名字
-- 开机自启勾上，以后不用管它
-
-</details>
 
 从源码编译（Rust 1.85+）：
 
 ```bash
 cargo install --path crates/clipsift-cli
+```
+
+自己打 Windows 安装包（需要 [Inno Setup 6](https://jrsoftware.org/isinfo.php)）：
+
+```powershell
+cargo build --release
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.2.1 installer\clipsift.iss
+# 产物在 dist\ClipSift-0.2.1-setup.exe
 ```
 
 ## 用法

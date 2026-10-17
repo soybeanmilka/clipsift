@@ -19,6 +19,14 @@ eframe = { version = "0.32", default-features = false, features = [
     "glow",
 ] }
 
+[dependencies.png]
+version = "0.17"
+
+[build-dependencies]
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
 [target.'cfg(windows)'.dependencies]
 # 读剪贴板。和 CLI 用同一个库，保证两边行为一致。
 arboard = { version = "3.4", default-features = false }

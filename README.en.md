@@ -40,33 +40,49 @@ are the worst offenders.
 
 ## Install
 
-Grab the package for your platform from
-[Releases](https://github.com/soybeanmilka/clipsift/releases):
+### Windows: run the installer (recommended)
+
+Download **`ClipSift-setup.exe`** from
+[Releases](https://github.com/soybeanmilka/clipsift/releases) and double-click it.
+
+Or from a terminal:
+
+```powershell
+winget install soybeanmilka.ClipSift
+```
+
+What you get:
+
+- Installs per-user into `%LOCALAPPDATA%\Programs\ClipSift` — **no admin rights**, no UAC prompt
+- Optional "start with Windows" and "desktop shortcut" checkboxes
+- Uninstall via Settings → Apps: program files, Start menu entry, desktop icon and the
+  autostart entry are all removed, and it asks whether to keep your rule settings
+
+Prefer a portable copy? `clipsift-windows-x86_64.zip` is unzip-and-run.
+
+### Other platforms
 
 | Platform | File | Install |
 | --- | --- | --- |
-| Windows x64 | `clipsift-windows-x86_64.zip` | Unzip and double-click `clipsift-gui.exe`; or put `clipsift.exe` on your `PATH` |
 | Linux x64 | `clipsift-linux-x86_64.tar.gz` | `tar -xzf` then `sudo mv clipsift /usr/local/bin/` |
 | macOS Apple Silicon | `clipsift-macos-aarch64.tar.gz` | `tar -xzf` then `mv clipsift ~/.local/bin/`; you may need `xattr -d com.apple.quarantine clipsift` on first run |
 
 A single executable. No runtime dependencies.
 
-<details>
-<summary>No terminal? On Windows just double-click <code>clipsift-gui.exe</code></summary>
-
 ![ClipSift desktop app](docs/images/gui.png)
-
-- It's already filtering the moment it opens — closing the window quits it
-- The 8 switches on the left apply instantly; the sandbox on the right shows the diff live
-- Not sure what a character is? It lists the code point and the name
-- Tick auto-start and forget about it
-
-</details>
 
 Build from source (Rust 1.85+):
 
 ```bash
 cargo install --path crates/clipsift-cli
+```
+
+Build the Windows installer yourself (needs [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
+
+```powershell
+cargo build --release
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=0.2.1 installer\clipsift.iss
+# output: dist\ClipSift-0.2.1-setup.exe
 ```
 
 ## Usage
