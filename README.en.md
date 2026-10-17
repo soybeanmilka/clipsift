@@ -217,13 +217,14 @@ poll is imperceptible to humans and costs about 0.01% CPU.
 cargo test
 ```
 
-- 25 unit tests covering each rule and their combinations
-- 12 unit tests covering the config file and `--off` switches
+- 25 unit tests covering each rule and their combinations (`clipsift-core`)
+- 5 unit tests covering the config file and `--off` switches (`clipsift-cli`)
 - 7 property tests, including **10,000 random dirty strings checked for idempotence**
   (merge-related plans skipped; all others must satisfy `apply(apply(x)) == apply(x)`)
 - `cargo clippy --all-targets -- -D warnings` is clean
 - End-to-end verified: two passes over a file yield identical SHA256, and the
   clipboard daemon works automatically
+- All three platform packages were downloaded back from GitHub and re-verified
 
 ## How it compares
 
