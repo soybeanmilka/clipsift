@@ -42,13 +42,25 @@
 
 | 平台 | 文件 | 装法 |
 | --- | --- | --- |
-| Windows x64 | `clipsift-windows-x86_64.zip` | 解压出 `clipsift.exe`，放进 `PATH`（如 `C:\Users\<你>\.cargo\bin`） |
+| Windows x64 | `clipsift-windows-x86_64.zip` | 解压后双击 `clipsift-gui.exe` 直接用；或把 `clipsift.exe` 放进 `PATH` |
 | Linux x64 | `clipsift-linux-x86_64.tar.gz` | `tar -xzf` 后 `sudo mv clipsift /usr/local/bin/` |
 | macOS Apple Silicon | `clipsift-macos-aarch64.tar.gz` | `tar -xzf` 后 `mv clipsift ~/.local/bin/`；首次运行可能要 `xattr -d com.apple.quarantine clipsift` |
 
 单个可执行文件，无运行库依赖。
 
-从源码编译（Rust 1.74+）：
+<details>
+<summary>不想看命令行？Windows 双击 <code>clipsift-gui.exe</code> 就行</summary>
+
+![ClipSift 图形界面](docs/images/gui.png)
+
+- 打开就在净化，没有"启动"按钮要你点 —— 关掉窗口 = 退出
+- 左边 8 个开关点了立刻生效，右边"试一下"实时看差别
+- 拿不准某个字符是什么？下面会列出码点和名字
+- 开机自启勾上，以后不用管它
+
+</details>
+
+从源码编译（Rust 1.85+）：
 
 ```bash
 cargo install --path crates/clipsift-cli
@@ -259,12 +271,17 @@ cargo test
 
 不想开命令行就装 `clipsift-gui`：双击打开，规则一勾就生效，守护在后台盯着剪贴板。
 
+![ClipSift 图形界面](docs/images/gui.png)
+
 - **试衣间**：贴一段文本，立刻列出「哪个字符 → 会变成什么」，
   按危害程度排序（隐形字符排最前，其次是会引发语法错的全角运算符）
 - **规则开关**：勾掉即时生效，守护运行中改规则也会马上换用新规则
 - **关窗口不退出**：点 × 收进任务栏继续守护，只有点「退出」才真退
 - **开机自启**：勾一下写进注册表，下次开机自动跑
 - 浅色/深色主题，内嵌中文字体，不依赖系统字体
+
+图形界面目前只发 Windows 版（Linux 上 egui 要额外的 X11/Wayland 头文件，
+而这类字符的主要痛点在中文 Windows 环境的复制粘贴）。
 
 ## 与其他方案对比
 

@@ -45,13 +45,25 @@ Grab the package for your platform from
 
 | Platform | File | Install |
 | --- | --- | --- |
-| Windows x64 | `clipsift-windows-x86_64.zip` | Unzip, put `clipsift.exe` on your `PATH` (e.g. `C:\Users\<you>\.cargo\bin`) |
+| Windows x64 | `clipsift-windows-x86_64.zip` | Unzip and double-click `clipsift-gui.exe`; or put `clipsift.exe` on your `PATH` |
 | Linux x64 | `clipsift-linux-x86_64.tar.gz` | `tar -xzf` then `sudo mv clipsift /usr/local/bin/` |
 | macOS Apple Silicon | `clipsift-macos-aarch64.tar.gz` | `tar -xzf` then `mv clipsift ~/.local/bin/`; you may need `xattr -d com.apple.quarantine clipsift` on first run |
 
 A single executable. No runtime dependencies.
 
-Build from source (Rust 1.74+):
+<details>
+<summary>No terminal? On Windows just double-click <code>clipsift-gui.exe</code></summary>
+
+![ClipSift desktop app](docs/images/gui.png)
+
+- It's already filtering the moment it opens — closing the window quits it
+- The 8 switches on the left apply instantly; the sandbox on the right shows the diff live
+- Not sure what a character is? It lists the code point and the name
+- Tick auto-start and forget about it
+
+</details>
+
+Build from source (Rust 1.85+):
 
 ```bash
 cargo install --path crates/clipsift-cli
@@ -257,6 +269,8 @@ cargo test
 If you'd rather not touch a terminal, run `clipsift-gui`: double-click, flip rule switches, and let the
 watcher sit on the clipboard in the background.
 
+![ClipSift desktop app](docs/images/gui.png)
+
 - **Playground** — paste text and immediately see "which character → what it becomes",
   sorted by severity (invisible characters first, then full-width operators that break syntax)
 - **Rule switches** — take effect on click; changing them while the watcher runs swaps rules live
@@ -264,6 +278,9 @@ watcher sit on the clipboard in the background.
   only the Exit button really stops it
 - **Start with Windows** — one checkbox writes the HKCU Run entry
 - Light/dark themes with an embedded CJK font, no reliance on system fonts
+
+The GUI ships for Windows only (egui needs extra X11/Wayland headers on Linux, and the
+pain point here is copy-paste in Chinese Windows environments).
 
 ## How it compares
 
