@@ -147,18 +147,31 @@ clipsift once
 | `invisible` | 删除隐形字符 | 开 | 删 `U+200B/200C/200D/2060/FEFF`、bidi 控制符、Unicode Tag |
 | `spaces` | 伪空格归一 | 开 | `U+00A0`、`U+2000-200A`、`U+3000` 等 → 普通空格 |
 | `confusables` | 同形字转 ASCII | 开 | 弯引号 `“”‘’`、破折号 `—–`、省略号 `…` → ASCII |
-| `fullwidth` | 全角转半角 | 关 | `！`→`!`、`Ａ`→`A`（会误伤中文排版，默认关） |
+| `fullwidth-alnum` | 全角字母数字转半角 | 开 | `Ａ`→`A`、`１２３`→`123`、`－＝（）`→`-=()` |
+| `fullwidth-punct` | 全角标点转半角 | 关 | `，`→`,`、`。`→`.`（中文正文里这些是正常写法，默认不动） |
 | `merge` | 合并硬回车 | 关 | PDF 抠正文用，**非幂等**，见下 |
 | `collapse-ws` | 压缩连续空白 | 开 | 行内多个空格 → 一个（**不动缩进宽度**） |
 | `trim` | 去行尾空白 | 开 | 删每行末尾的空格/tab |
 | `control` | 删控制字符 | 开 | 删 `\0` 等，保留 `\n\r\t` |
 
+### 为什么全角分两档
+
+全角 `－` 出现在 `x = －1` 里，Python 直接报 SyntaxError；但它长得和标点一样，
+很容易被当成“中文里正常的东西”放过。所以：
+
+- **字母数字和运算符**（`Ａ` `１` `－` `＝` `（）`）→ 默认**修掉**，因为在代码里必定出错
+- **标点**（`，` `。` `！` `？`）→ 默认**保留**，因为中文正文里本来就这么写
+
+反过来一刀切的话，要么代码里的全角运算符漏网，要么中文段落被打成一堆半角标点。
+
 ### 关掉某条规则
 
 ```bash
-clipsift --off fullwidth --off merge < dirty.txt
+clipsift --off confusables --off merge < dirty.txt
 clipsift --list-rules        # 看所有键名
 ```
+
+`--off fullwidth` 仍然可用，会一次关掉上面那两档。
 
 ### 配置文件
 
@@ -173,7 +186,8 @@ clipsift -c clipsift.json < dirty.txt
   "invisible": true,
   "normalize_spaces": true,
   "confusables": true,
-  "fullwidth_ascii": false,
+  "fullwidth_alnum": true,
+  "fullwidth_punct": false,
   "merge_hard_returns": false,
   "collapse_whitespace": true,
   "trim_trailing": true,
@@ -232,13 +246,25 @@ CPU 开销在万分之一量级。
 cargo test
 ```
 
-- 25 个单元测试覆盖每条规则和它们的组合（`clipsift-core`）
+- 30 个单元测试覆盖每条规则和它们的组合，含全角运算符/中文标点的分档（`clipsift-core`）
 - 9 个单元测试覆盖配置文件、`--off` 开关与开机自启注册表项（`clipsift-cli`）
+- 10 个单元测试覆盖守护线程生命周期与剪贴板状态机（`clipsift-gui`）
 - 7 个属性测试，含**一万条随机脏文本验证幂等性**
   （1 万条里跳过 merge 相关的部分，非 merge 计划要求 `apply(apply(x)) == apply(x)`）
 - `cargo clippy --all-targets -- -D warnings` 无警告
 - 端到端验证过：文件级两次净化 SHA256 一致、剪贴板守护进程自动生效
 - 三个平台的发行包都从 GitHub 下载回来重新验证过
+
+## 图形界面
+
+不想开命令行就装 `clipsift-gui`：双击打开，规则一勾就生效，守护在后台盯着剪贴板。
+
+- **试衣间**：贴一段文本，立刻列出「哪个字符 → 会变成什么」，
+  按危害程度排序（隐形字符排最前，其次是会引发语法错的全角运算符）
+- **规则开关**：勾掉即时生效，守护运行中改规则也会马上换用新规则
+- **关窗口不退出**：点 × 收进任务栏继续守护，只有点「退出」才真退
+- **开机自启**：勾一下写进注册表，下次开机自动跑
+- 浅色/深色主题，内嵌中文字体，不依赖系统字体
 
 ## 与其他方案对比
 

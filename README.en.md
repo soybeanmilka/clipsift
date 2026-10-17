@@ -152,7 +152,8 @@ The defaults are tested and cover ~95% of real-world cases.
 | `invisible` | Remove invisible chars | on | Deletes `U+200B/200C/200D/2060/FEFF`, bidi controls, Unicode Tags |
 | `spaces` | Normalize fake spaces | on | `U+00A0`, `U+2000-200A`, `U+3000` → plain space |
 | `confusables` | Confusables → ASCII | on | Curly quotes `“”‘’`, dashes `—–`, ellipsis `…` → ASCII |
-| `fullwidth` | Full-width → half-width | off | `！`→`!`, `Ａ`→`A` (can mangle CJK typography, off by default) |
+| `fullwidth-alnum` | Full-width letters/digits → ASCII | on | `Ａ`→`A`, `１２３`→`123`, `－＝（）`→`-=()` |
+| `fullwidth-punct` | Full-width punctuation → ASCII | off | `，`→`,`, `。`→`.` (these are normal in CJK prose) |
 | `merge` | Merge hard returns | off | For flattening PDF text; **not idempotent**, see below |
 | `collapse-ws` | Collapse runs of spaces | on | Multiple spaces within a line → one (**indentation width preserved**) |
 | `trim` | Trim line tails | on | Removes trailing spaces/tabs per line |
@@ -161,7 +162,7 @@ The defaults are tested and cover ~95% of real-world cases.
 ### Disable a rule
 
 ```bash
-clipsift --off fullwidth --off merge < dirty.txt
+clipsift --off confusables --off merge < dirty.txt
 clipsift --list-rules        # list every key
 ```
 
@@ -178,7 +179,8 @@ clipsift -c clipsift.json < dirty.txt
   "invisible": true,
   "normalize_spaces": true,
   "confusables": true,
-  "fullwidth_ascii": false,
+  "fullwidth_alnum": true,
+  "fullwidth_punct": false,
   "merge_hard_returns": false,
   "collapse_whitespace": true,
   "trim_trailing": true,
@@ -240,14 +242,28 @@ poll is imperceptible to humans and costs about 0.01% CPU.
 cargo test
 ```
 
-- 25 unit tests covering each rule and their combinations (`clipsift-core`)
+- 30 unit tests covering each rule and their combinations, including the full-width operator/punctuation split (`clipsift-core`)
 - 9 unit tests covering the config file, `--off` switches and the autostart entry (`clipsift-cli`)
+- 10 unit tests covering the watcher thread lifecycle and clipboard state machine (`clipsift-gui`)
 - 7 property tests, including **10,000 random dirty strings checked for idempotence**
   (merge-related plans skipped; all others must satisfy `apply(apply(x)) == apply(x)`)
 - `cargo clippy --all-targets -- -D warnings` is clean
 - End-to-end verified: two passes over a file yield identical SHA256, and the
   clipboard daemon works automatically
 - All three platform packages were downloaded back from GitHub and re-verified
+
+## Desktop GUI
+
+If you'd rather not touch a terminal, run `clipsift-gui`: double-click, flip rule switches, and let the
+watcher sit on the clipboard in the background.
+
+- **Playground** — paste text and immediately see "which character → what it becomes",
+  sorted by severity (invisible characters first, then full-width operators that break syntax)
+- **Rule switches** — take effect on click; changing them while the watcher runs swaps rules live
+- **Closing the window doesn't quit** — × minimizes to the taskbar and keeps watching;
+  only the Exit button really stops it
+- **Start with Windows** — one checkbox writes the HKCU Run entry
+- Light/dark themes with an embedded CJK font, no reliance on system fonts
 
 ## How it compares
 

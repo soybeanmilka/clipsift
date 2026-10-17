@@ -25,12 +25,15 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: clipsift-windows-x86_64.zip
+            gui: true
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: clipsift-linux-x86_64.tar.gz
+            gui: false
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact: clipsift-macos-aarch64.tar.gz
+            gui: false
 
     steps:
       - uses: actions/checkout@v4
@@ -44,6 +47,12 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }} --bin clipsift
 
+      # GUI 目前只发 Windows 版：Linux 上 egui 需要额外的 X11/Wayland 头文件，
+      # 而这工具的主要痛点在中文 Windows 环境的复制粘贴。
+      - name: Build GUI (Windows only)
+        if: matrix.gui
+        run: cargo build --release --target ${{ matrix.target }} --bin clipsift-gui
+
       # ---- 打包：Windows 用 zip，其他用 tar.gz ----
       - name: Package (Windows)
         if: runner.os == 'Windows'
@@ -54,6 +63,7 @@ jobs:
           $bin = "target/${{ matrix.target }}/release/${{ env.BIN }}.exe"
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Copy-Item -Path $bin -Destination "dist/${{ env.BIN }}.exe"
+          Copy-Item -Path "target/${{ matrix.target }}/release/${{ env.BIN }}-gui.exe" -Destination "dist/${{ env.BIN }}-gui.exe"
           Copy-Item -Path @("README.md", "README.en.md", "LICENSE") -Destination dist
           Copy-Item -Path "docs" -Destination dist -Recurse
           Compress-Archive -Path "dist/*" -DestinationPath ${{ matrix.artifact }}
@@ -97,7 +107,10 @@ jobs:
           body: |
             ## 安装
 
-            下载对应平台的文件解压，把 `clipsift` 放进 `PATH` 即可。
+            下载对应平台的文件解压。Windows 包里有两个程序：
+
+            - `clipsift-gui.exe` —— 图形界面，双击就能用（推荐）
+            - `clipsift.exe` —— 命令行，放进 `PATH` 即可
 
             | 平台 | 文件 |
             | --- | --- |

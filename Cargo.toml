@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/clipsift-core", "crates/clipsift-cli", "crates/clipsift-gui"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 # GUI 用的 eframe 0.32 要求 1.85，整个 workspace 跟着抬。
 # 只影响源码编译（想自己 build 的人），下载预编译 exe 的用户不受限制。

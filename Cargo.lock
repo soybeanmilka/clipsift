@@ -333,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "clipsift-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arboard",
  "clap",
@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "clipsift-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "regex",
  "serde",
@@ -353,7 +353,7 @@ dependencies = [
 
 [[package]]
 name = "clipsift-gui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arboard",
  "clipsift-core",
