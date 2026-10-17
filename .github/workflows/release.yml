@@ -49,18 +49,22 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          # 注意：PowerShell 里 `Copy-Item a b dir/` 会被解析成位置参数错误，
+          # 必须用 -Path 数组 或者 逐个 Copy-Item。
           $bin = "target/${{ matrix.target }}/release/${{ env.BIN }}.exe"
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item $bin "dist/${{ env.BIN }}.exe"
-          Copy-Item README.md LICENSE dist/
-          Compress-Archive -Path dist/* -DestinationPath ${{ matrix.artifact }}
+          Copy-Item -Path $bin -Destination "dist/${{ env.BIN }}.exe"
+          Copy-Item -Path @("README.md", "LICENSE", "README.zh-CN.md") -Destination dist
+          Copy-Item -Path "docs" -Destination dist -Recurse
+          Compress-Archive -Path "dist/*" -DestinationPath ${{ matrix.artifact }}
 
       - name: Package (Unix)
         if: runner.os != 'Windows'
         run: |
           mkdir -p dist
           cp "target/${{ matrix.target }}/release/${BIN}" dist/
-          cp README.md LICENSE dist/
+          cp README.md LICENSE README.zh-CN.md dist/
+          cp -r docs dist/
           chmod +x "dist/${BIN}"
           tar -czf "${{ matrix.artifact }}" -C dist .
 
