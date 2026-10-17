@@ -1,0 +1,21 @@
+# Rust
+/target
+**/*.rs.bk
+*.pdb
+
+# 构建产物与安装包
+/dist
+/release
+*.exe
+*.zip
+!crates/**
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# 本地配置（用户自己的设置不要提交）
+clipsift.toml
+.settings.json

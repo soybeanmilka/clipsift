@@ -1,0 +1,16 @@
+[package]
+name = "clipsift-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "ClipSift 的核心文本净化引擎：清除零宽/隐形字符、合并硬回车、全半角标点转换、同形字归一"
+
+[dependencies]
+regex = "1.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]

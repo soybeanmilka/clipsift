@@ -1,0 +1,6 @@
+# 统一换行，避免 Windows 上 CRLF 混进仓库、导致别人 clone 下来到处是改动
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.zip binary
+*.exe binary

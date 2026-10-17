@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = ["crates/clipsift-core", "crates/clipsift-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+license = "MIT"
+repository = "https://github.com/soybeanmilka/clipsift"
+authors = ["soybeanmilka"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
