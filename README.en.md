@@ -241,7 +241,7 @@ cargo test
 ```
 
 - 25 unit tests covering each rule and their combinations (`clipsift-core`)
-- 5 unit tests covering the config file and `--off` switches (`clipsift-cli`)
+- 9 unit tests covering the config file, `--off` switches and the autostart entry (`clipsift-cli`)
 - 7 property tests, including **10,000 random dirty strings checked for idempotence**
   (merge-related plans skipped; all others must satisfy `apply(apply(x)) == apply(x)`)
 - `cargo clippy --all-targets -- -D warnings` is clean

@@ -233,7 +233,7 @@ cargo test
 ```
 
 - 25 个单元测试覆盖每条规则和它们的组合（`clipsift-core`）
-- 5 个单元测试覆盖配置文件与 `--off` 开关（`clipsift-cli`）
+- 9 个单元测试覆盖配置文件、`--off` 开关与开机自启注册表项（`clipsift-cli`）
 - 7 个属性测试，含**一万条随机脏文本验证幂等性**
   （1 万条里跳过 merge 相关的部分，非 merge 计划要求 `apply(apply(x)) == apply(x)`）
 - `cargo clippy --all-targets -- -D warnings` 无警告
