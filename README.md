@@ -65,8 +65,29 @@ clipsift watch
 跑起来后不用管它，你**每次复制**它都会检查一遍剪贴板，脏了就原地洗干净。
 之后再粘贴就是干净的。Ctrl+C 退出。
 
-开机自启（Windows）：把快捷方式丢进
-`shell:startup`（Win+R 输入即可打开该文件夹）。
+### 开机自启：一次设置，以后不用管
+
+```bash
+clipsift autostart enable     # 开机自动在后台守护，无窗口
+clipsift autostart status     # 看开没开
+clipsift autostart disable    # 关掉
+```
+
+写完自启项不用重启也能验证：`clipsift watch --background` 就是这个自启项实际跑的东西。
+
+写在 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`，**不需要管理员权限**。
+任务管理器的「启动」标签页里也能看到并禁用同一个启动项。
+
+如果改过规则想带上配置文件，参数用 `--with` 传（顺带一提：这里必须写绝对路径，
+因为开机时工作目录是 `C:\Windows\System32`）：
+
+```bash
+clipsift autostart enable --with -c --with C:\Users\你\clipsift.json
+```
+
+> 为什么不直接写 `-c`？因为 `-c` 是 ClipSift 自己的全局参数，直接接在
+> `autostart enable` 后面会被理解成"用这个配置文件去执行 autostart 命令"。
+> `--with` 明确表示"把这个参数原样记进启动项"。
 
 ### 一次性净化文件
 

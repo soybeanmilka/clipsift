@@ -68,8 +68,31 @@ clipsift watch
 Leave it running. **Every time you copy**, it checks the clipboard and cleans it
 in place if needed. Whatever you paste is already clean. Ctrl+C to stop.
 
-Auto-start on Windows: drop a shortcut into `shell:startup`
-(press Win+R and type `shell:startup`).
+### Auto-start: set it once, forget it
+
+```bash
+clipsift autostart enable     # start the daemon at login, windowless
+clipsift autostart status     # check
+clipsift autostart disable    # turn it off
+```
+
+No reboot needed to verify: `clipsift watch --background` is exactly what the
+startup entry runs.
+
+The entry lives in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` and
+**needs no administrator rights**. It also shows up in Task Manager's Startup
+tab, where you can disable it the same way.
+
+To pin a config file into the startup entry, pass it with `--with` (absolute
+paths only — at login the working directory is `C:\Windows\System32`):
+
+```bash
+clipsift autostart enable --with -c --with C:\Users\you\clipsift.json
+```
+
+> Why not just `-c`? Because `-c` is ClipSift's own global flag; writing it
+> directly after `autostart enable` would mean "use this config to run the
+> autostart command". `--with` says "record this argument verbatim".
 
 ### Clean a file
 

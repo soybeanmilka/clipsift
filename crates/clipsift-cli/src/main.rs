@@ -14,6 +14,7 @@
 //! 设计上只有一个原则：**绝不让坏输入把程序搞崩**。剪贴板守护进程崩了，
 //! 用户此后所有复制都会带着脏字符，这比不装还糟。
 
+mod autostart;
 mod config;
 
 use clap::{Parser, Subcommand};
@@ -76,13 +77,42 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Command {
     /// 常驻后台，每次复制自动净化剪贴板内容
-    Watch,
+    Watch {
+        /// 启动后立刻藏掉控制台窗口（给开机自启用；手动运行时别加）
+        #[arg(long)]
+        background: bool,
+    },
     /// 净化当前剪贴板一次，把结果写回剪贴板
     Once,
     /// 打印默认配置的 JSON，方便改完再 --config 喂回来
     Init,
     /// 把一段文本里的可疑字符列出来（从 stdin 或 -f 读）
     Inspect,
+    /// 开机自启：让 ClipSift 随 Windows 登录自动开始守护
+    Autostart {
+        #[command(subcommand)]
+        action: AutostartAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum AutostartAction {
+    /// 开机自动启动（写到 HKCU 的 Run 项，不需要管理员权限）
+    Enable {
+        /// 写进启动项的额外参数，原样带上。
+        ///
+        /// 用 --with 而不是直接接在命令后面：-c 是本程序的全局参数，
+        /// 直接写会被当成"用这个配置文件去跑 autostart 命令"，
+        /// 而不是"把这个参数存进启动项"。
+        ///
+        /// 例：--with -c --with C:\Users\你\clipsift.json
+        #[arg(long = "with", value_name = "ARG", allow_hyphen_values = true)]
+        with: Vec<String>,
+    },
+    /// 取消开机自启
+    Disable,
+    /// 查看当前是否已启用开机自启
+    Status,
 }
 
 fn main() {
@@ -131,8 +161,14 @@ fn run(cli: Cli) -> Result<(), String> {
             inspect(&text);
             Ok(())
         }
-        Some(Command::Watch) => watch(plan, cli.interval),
+        Some(Command::Watch { background }) => {
+            if background {
+                autostart::hide_console_window()?;
+            }
+            watch(plan, cli.interval)
+        }
         Some(Command::Once) => once(plan),
+        Some(Command::Autostart { action }) => autostart_cmd(action),
         None => {
             let text = read_input(&cli)?;
             let (out, report) = apply(&text, &plan);
@@ -270,6 +306,79 @@ fn once(plan: Plan) -> Result<(), String> {
         clipboard_write(&out)?;
         println!("{}", report.summary());
         Ok(())
+    }
+}
+
+/// `clipsift autostart enable|disable|status` 的实现。
+fn autostart_cmd(action: AutostartAction) -> Result<(), String> {
+    match action {
+        AutostartAction::Enable { with } => {
+            // 开机自启时工作目录是 C:\Windows\System32（由 explorer 决定），
+            // 任何相对路径都会指向那里而不是用户当时所在的位置。这里提前拦住，
+            // 不然用户重启后会发现"自启没生效"却查不出原因。
+            for a in &with {
+                let p = std::path::Path::new(a);
+                if !a.starts_with('-') && p.is_relative() {
+                    return Err(format!(
+                        "参数 `{a}` 是相对路径。开机自启时工作目录是 C:\\Windows\\System32，\
+                         相对路径会找错地方。请改成绝对路径，\
+                         比如 `clipsift autostart enable --with -c --with C:\\Users\\你\\clipsift.json`"
+                    ));
+                }
+            }
+            let exe = std::env::current_exe().map_err(|e| format!("找不到当前程序的路径：{e}"))?;
+            let cmd = autostart::command_line(&exe, &with);
+            autostart::enable(&cmd)?;
+            println!("已设置开机自启。");
+            println!(
+                "  启动项：HKCU\\{}\\{}",
+                autostart::RUN_KEY,
+                autostart::REG_VALUE_NAME
+            );
+            println!("  命令行：{cmd}");
+            println!();
+            println!("下次登录 Windows 时自动开始在后台守护剪贴板（无窗口）。");
+            println!("想立刻生效，现在手动跑一次：clipsift watch --background");
+            Ok(())
+        }
+        AutostartAction::Disable => {
+            autostart::disable()?;
+            println!("已取消开机自启。");
+            println!("（如果守护进程正在跑，它不会因此停下；Ctrl+C 或任务管理器结束即可。）");
+            Ok(())
+        }
+        AutostartAction::Status => {
+            match autostart::query()? {
+                Some(cmd) => {
+                    if autostart::is_ours(&cmd) {
+                        println!("开机自启：已启用");
+                    } else {
+                        // 同名的注册表项被别人占了：不覆盖，但在提示里说清楚，
+                        // 免得用户以为开了、其实开的是别的东西。
+                        println!("开机自启：已启用，但这条启动项不是 ClipSift 写的");
+                    }
+                    println!("  命令行：{cmd}");
+                    let current = std::env::current_exe()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_default();
+                    // 路径对不上通常是"把 exe 挪了位置"，启动项还指着老地方。
+                    // 这种情况不报错，但必须提示，否则用户重启后发现没生效会很懵。
+                    if !current.is_empty() && !cmd.contains(&current) {
+                        println!();
+                        println!("⚠ 启动项里的路径和当前这个 exe 不一致。");
+                        println!("  当前 exe：{current}");
+                        println!(
+                            "  如果刚才挪过 exe 的位置，跑一次 `clipsift autostart enable` 更新。"
+                        );
+                    }
+                }
+                None => {
+                    println!("开机自启：未启用");
+                    println!("  开启：clipsift autostart enable");
+                }
+            }
+            Ok(())
+        }
     }
 }
 

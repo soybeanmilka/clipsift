@@ -147,6 +147,7 @@ dependencies = [
  "clap",
  "clipsift-core",
  "serde_json",
+ "windows-sys",
 ]
 
 [[package]]

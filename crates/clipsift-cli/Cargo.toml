@@ -19,3 +19,11 @@ serde_json = "1.0"
 
 [target.'cfg(windows)'.dependencies]
 arboard = { version = "3.4", default-features = false }
+# 开机自启要靠注册表；隐藏控制台窗口要 ShowWindow/GetConsoleWindow。
+# 这两个都在 arboard 已经拉进来的 windows-sys 里，加为直接依赖几乎不增体积。
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Registry",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Console",
+] }
