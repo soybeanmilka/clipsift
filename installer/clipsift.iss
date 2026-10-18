@@ -6,7 +6,7 @@
 ; - 卸载时问一句要不要保留配置，不替你决定
 ;
 ; 编译方式（本地或 CI）：
-;   ISCC.exe /DAppVersion=0.3.1 /DSourceDir=..\target\release installer\clipsift.iss
+;   ISCC.exe /DAppVersion=0.3.2 /DSourceDir=..\target\release installer\clipsift.iss
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
