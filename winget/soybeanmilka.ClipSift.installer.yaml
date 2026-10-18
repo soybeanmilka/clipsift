@@ -22,8 +22,8 @@ ReleaseDate: 2026-10-18
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/soybeanmilka/clipsift/releases/download/v0.3.2/ClipSift-setup.exe
-    # 从 GitHub Release 的 CI 产物现算（v0.3.2 发布后下载 ClipSift-setup.exe，3970690 字节）。
+    # 从 GitHub Release 的 CI 产物现算（v0.3.2 发布后下载 ClipSift-setup.exe，3971453 字节）。
     # 不能用本地编译的安装包：字节不同，哈希对不上，winget 会校验失败。
-    InstallerSha256: EDCEE42569EEB44B5DA7369B3472A87FE4786A2324C611C18CBB4F038DA417C0
+    InstallerSha256: 7DE16BAB28C25A392BD0B5B586A71B7860178A8112C443A07E7CE94F7BF7A51B
 ManifestType: installer
 ManifestVersion: 1.6.0
