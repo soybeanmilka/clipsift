@@ -371,6 +371,7 @@ dependencies = [
  "clipsift-core",
  "eframe",
  "png 0.17.16",
+ "raw-window-handle",
  "tray-icon",
  "uuid",
  "windows-sys 0.61.2",

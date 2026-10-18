@@ -17,6 +17,7 @@ mod reg;
 #[cfg(debug_assertions)]
 mod shot;
 mod state;
+mod taskbar;
 mod theme;
 mod tray;
 mod ui;

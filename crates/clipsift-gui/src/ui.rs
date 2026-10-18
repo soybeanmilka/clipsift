@@ -30,6 +30,10 @@ pub struct App {
     tray: Option<Tray>,
     /// 托盘心跳线程起过没有（只起一次，见 `tray::spawn_heartbeat`）。
     heartbeat_on: bool,
+    /// 原生窗口句柄，用来改任务栏按钮（见 `crate::taskbar`）。
+    /// 第一帧拿到就存下来，之后不再调 FFI。None 表示拿不到，
+    /// 那时候藏窗口只改可见性，任务栏按钮会留下（老行为）。
+    hwnd: Option<isize>,
 
     // 统计
     cleaned_total: usize,
@@ -75,6 +79,7 @@ impl App {
             // 换到别的线程建出来的托盘菜单点了没反应。
             tray: Tray::new(),
             heartbeat_on: false,
+            hwnd: None,
             cleaned_total: 0,
             chars_removed_total: 0,
             last_clean_at: None,
@@ -149,6 +154,11 @@ impl App {
                     // 只发 Visible(true) 在 winit 里不一定真的 show（它内部有
                     // "已经是可见的就不重复显示"的短路），所以先 Minimized(false)。
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                    // 先把任务栏按钮还回来再显示。反过来的话 Windows 可能把
+                    // 样式变更和可见性变更当成一批处理，按钮不出现。
+                    if let Some(h) = self.hwnd {
+                        crate::taskbar::show_button(h);
+                    }
                     ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                     ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                     self.hidden = false;
@@ -175,6 +185,15 @@ impl App {
         if self.tray.is_some() {
             // 有托盘：窗口彻底藏起来，任务栏上也不留按钮。
             // 恢复靠托盘的左键/「显示窗口」，不会找不到。
+            //
+            // 两步必须一起做，只发 Visible(false) 会留下一个僵尸任务栏按钮：
+            // winit 把它翻成 ShowWindow(SW_HIDE)，只清 WS_VISIBLE，而窗口
+            // 没被最小化、ex style 也还带着 WS_EX_APPWINDOW，Windows 就照样
+            // 分配按钮——看得见却点不动（点它只是激活一个不可见窗口）。
+            // 所以这里自己把 ex style 改成工具窗口，让 Windows 别再给按钮。
+            if let Some(h) = self.hwnd {
+                crate::taskbar::hide_button(h);
+            }
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         } else {
             // 没有托盘（非 Windows，或者托盘建不出来）：只能收进任务栏，
@@ -225,7 +244,14 @@ impl App {
 }
 
 impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        // 第一帧把窗口句柄存下来。之后藏窗口/唤回窗口都要用它改任务栏按钮，
+        // 没必要每帧都调一次 FFI。拿不到（非 Windows、或者将来 eframe 换了
+        // 句柄提供方式）就一直是 None，藏窗口退化成只改可见性。
+        if self.hwnd.is_none() {
+            self.hwnd = crate::taskbar::hwnd(frame);
+            crate::debug_log(&format!("[ui] hwnd={:?}", self.hwnd));
+        }
         // 开发期截图（只在 debug 构建里存在，见 shot.rs）。不设环境变量时是空操作。
         #[cfg(debug_assertions)]
         crate::shot::tick(ctx);

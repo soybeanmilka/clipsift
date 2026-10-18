@@ -18,6 +18,9 @@ eframe = { version = "0.32", default-features = false, features = [
     "default_fonts",
     "glow",
 ] }
+# 从 eframe::Frame 里取原生窗口句柄（改任务栏按钮要用）。
+# 版本跟着 eframe 0.32 锁定的那套走，自己另起一个版本会撞同名类型。
+raw-window-handle = "0.6"
 
 [dependencies.png]
 version = "0.17"
