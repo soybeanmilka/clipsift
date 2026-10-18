@@ -54,3 +54,14 @@
       否则用户找不到出口。改窗口行为时先想清楚：**最坏情况下用户怎么退出这个程序**。
 - [ ] 窗口 ex style 的位运算必须有单测。真机上这种 bug 的表现是「按钮时有时无」，
       复现不了，只能靠测。
+- [ ] **藏起来之后必须还能被托盘叫醒**（2026-10-18 又踩一次，0.3.1 的 bug）。
+      窗口不可见时 Windows 不再给它派发 `WM_PAINT`，而 eframe 的每一帧恰恰挂在
+      `WM_PAINT` 上——窗口一藏，帧循环就彻底停摆（日志实测：藏起来之后 8 秒 0 帧），
+      `request_repaint` / `request_repaint_after` 排的帧全是空转，托盘事件堆在队列里
+      没人取。唤醒线程必须用 `taskbar::force_paint`（`SendMessageW(WM_PAINT)`）从外面
+      同步塞一个 `WM_PAINT` 才叫得醒；`PostMessage(WM_PAINT)` 和 `RedrawWindow` 都不行。
+      验证脚本：藏窗口（`PostMessage WM_CLOSE`）→ 向进程的 `tray_icon_app` 窗口
+      `PostMessage(6002, 0, 0x0202)`（tray-icon 的 `WM_USER_TRAYICON` + `WM_LBUTTONUP`）
+      模拟一次左键 → 主窗口 `IsWindowVisible` 必须变回 true。
+- [ ] 别拿 `request_repaint_after` 当隐藏窗口的定时器：对不可见窗口它排的帧永远不执行，
+      只会让消息循环空转（还让人误以为"在刷新"）。
