@@ -106,6 +106,35 @@ mod imp {
     pub fn show_button(hwnd: isize) -> Option<isize> {
         set_taskbar(hwnd, true)
     }
+
+    /// 窗口现在是不是「看得见」。
+    ///
+    /// 只查 `WS_VISIBLE` 这一位——藏到托盘时 winit 发的 `ShowWindow(SW_HIDE)`
+    /// 清的就是它。托盘唤醒线程靠这个决定走哪条路把界面叫醒。
+    pub fn is_visible(hwnd: isize) -> bool {
+        use windows_sys::Win32::UI::WindowsAndMessaging::IsWindowVisible;
+        unsafe { IsWindowVisible(hwnd as *mut core::ffi::c_void) != 0 }
+    }
+
+    /// 从外面同步塞一个 WM_PAINT，逼窗口立刻跑一帧。
+    ///
+    /// 为什么需要这条路：eframe 的每一帧都挂在 `WindowEvent::RedrawRequested` 上，
+    /// 而这个事件来自 WM_PAINT，**Windows 只给可见窗口派发 WM_PAINT**（winit 自己在
+    /// platform_impl/windows/event_loop.rs 里就写着「窗口技术上必须可见才能收到
+    /// WM_PAINT」）。所以窗口一藏，帧循环就彻底停了：`request_repaint` /
+    /// `request_repaint_after` 排的帧永远不执行，托盘事件堆在队列里没人取，
+    /// 用户点了托盘图标毫无反应（0.3.1 的真实 bug，日志实测藏起来之后 8 秒 0 帧）。
+    ///
+    /// 试过、不行的两条路：
+    /// - `PostMessage(WM_PAINT)`：winit 把它记成「稍后再画」，然后靠
+    ///   `RedrawWindow(RDW_INTERNALPAINT)` 补，而那对隐藏窗口同样是空转，实测 0 帧。
+    /// - `RedrawWindow(RDW_INVALIDATE | RDW_UPDATENOW)`：同上，0 帧。
+    ///
+    /// `SendMessage` 是同步的，直接进窗口过程跑一帧，实测能稳定把帧催起来。
+    pub fn force_paint(hwnd: isize) {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{SendMessageW, WM_PAINT};
+        unsafe { SendMessageW(hwnd as *mut core::ffi::c_void, WM_PAINT, 0, 0) };
+    }
 }
 
 #[cfg(not(windows))]
@@ -120,9 +149,13 @@ mod imp {
     pub fn show_button(_hwnd: isize) -> Option<isize> {
         None
     }
+    pub fn is_visible(_hwnd: isize) -> bool {
+        false
+    }
+    pub fn force_paint(_hwnd: isize) {}
 }
 
-pub use imp::{hide_button, hwnd, show_button};
+pub use imp::{force_paint, hide_button, hwnd, is_visible, show_button};
 
 #[cfg(all(test, windows))]
 mod tests {

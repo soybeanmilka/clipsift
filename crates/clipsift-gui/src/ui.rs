@@ -28,8 +28,8 @@ pub struct App {
     quitting: bool,
     /// 右下角通知区的图标。建不出来就是 None，界面照常。
     tray: Option<Tray>,
-    /// 托盘心跳线程起过没有（只起一次，见 `tray::spawn_heartbeat`）。
-    heartbeat_on: bool,
+    /// 托盘唤醒线程起过没有（只起一次，见 `tray::spawn_pump`）。
+    pump_on: bool,
     /// 原生窗口句柄，用来改任务栏按钮（见 `crate::taskbar`）。
     /// 第一帧拿到就存下来，之后不再调 FFI。None 表示拿不到，
     /// 那时候藏窗口只改可见性，任务栏按钮会留下（老行为）。
@@ -78,7 +78,7 @@ impl App {
             // 必须在主线程（也就是这里）创建：托盘要挂在窗口的消息循环上，
             // 换到别的线程建出来的托盘菜单点了没反应。
             tray: Tray::new(),
-            heartbeat_on: false,
+            pump_on: false,
             hwnd: None,
             cleaned_total: 0,
             chars_removed_total: 0,
@@ -284,11 +284,11 @@ impl eframe::App for App {
             t.sync(self.watcher.is_some(), self.cleaned_total);
         }
         // 托盘事件要靠 Windows 消息循环分发，而消息循环只在有新帧时才被驱动。
-        // 窗口藏起来之后 eframe 会跳过所有排定的重绘（request_repaint_after 失效），
-        // 所以用一个独立线程按节奏催帧，见 tray::spawn_heartbeat 的注释。
-        if self.tray.is_some() && !self.heartbeat_on {
-            self.heartbeat_on = true;
-            tray::spawn_heartbeat(ctx.clone());
+        // 所以用一个独立线程盯着托盘事件队列，真有事件才把界面叫醒（藏起来的时候
+        // 还要靠它从外面塞 WM_PAINT），见 tray::spawn_pump 的注释。
+        if self.tray.is_some() && !self.pump_on {
+            self.pump_on = true;
+            tray::spawn_pump(ctx.clone(), self.hwnd);
         }
         // 没托盘时靠「窗口失焦→重新点回来」判断窗口是否回来了。
         // 有托盘的话这条路走不通：窗口可能被别的程序盖住，因为「重新获得焦点」
@@ -307,14 +307,10 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.hide_to_tray(ctx);
         }
-        // 窗口藏起来之后，egui 默认不再重绘，后台线程发来的事件就没机会被收走，
-        // 统计数字会停在藏起来那一刻。所以隐藏期间仍然按较低的频率推重绘。
-        if self.hidden {
-            ctx.request_repaint_after(Duration::from_millis(1000));
-        }
-
         // 守护在跑的时候，状态条要显示秒数，得有个东西推着重画。
-        if self.watcher.is_some() {
+        // 藏起来时不用推：Windows 不给不可见窗口发 WM_PAINT，这些重绘排了也白排，
+        // 只会让消息循环空转；唤回窗口那一帧自然会重算。
+        if self.watcher.is_some() && !self.hidden {
             ctx.request_repaint_after(Duration::from_millis(500));
         }
 

@@ -9,11 +9,12 @@
 //! - **必须在窗口线程（主线程）上创建**：托盘要绑定一个窗口来收消息，
 //!   从别的线程创建会拿到一个不属于当前消息循环的窗口，菜单点了没反应。
 //! - 托盘图标自己的消息靠 Windows 消息循环分发。egui 平时没有用户操作就不跑帧，
-//!   所以后台还有一个心跳线程按 `TRAY_POLL_INTERVAL` 的节奏喊一声 `request_repaint`，
-//!   主线程的帧循环才会醒过来把托盘事件取走，见 `super::spawn_heartbeat`。
-//!   **不能用 `request_repaint_after` 代替**：窗口被 `Visible(false)` 藏起来之后，
-//!   eframe 会直接跳过帧（Windows 上非 0 尺寸的窗口才给发重绘），
-//!   `request_repaint_after` 排的那一帧永远等不到，托盘点了也没反应。
+//!   所以有一个唤醒线程盯着托盘事件队列，真有事件才把界面叫醒跑一帧，见 `spawn_pump`。
+//!   **藏起来的窗口必须用 `taskbar::force_paint` 叫醒**：窗口被 `Visible(false)` 藏掉
+//!   之后 Windows 不再给它派发 WM_PAINT（只给可见窗口发），而 eframe 的每一帧恰恰
+//!   就挂在 WM_PAINT 上，于是 `request_repaint` / `request_repaint_after` 排的帧永远
+//!   不执行，托盘事件堆在队列里没人取——0.3.1 的「收进托盘之后点图标没反应」就是它
+//!   （日志实测：藏起来之后 8 秒 0 帧）。
 //!
 //! - Win11 默认把新注册的托盘图标塞进任务栏那个「⌃」溢出面板里。面板展开后会
 //!   自己吃掉图标上的一部分鼠标消息（实测单击拿不到、右键能拿到），所以「唤回窗口」
@@ -44,11 +45,10 @@ pub enum TrayAction {
 /// 应用名，出现在悬停提示里。
 pub const APP_NAME: &str = "ClipSift";
 
-/// 多久醒一次去收托盘事件。
+/// 唤醒线程多久看一眼托盘事件队列。
 ///
-/// 不是"托盘刷新频率"，只是让 egui 的帧循环别彻底睡着：托盘点击和菜单选择
-/// 都会往窗口消息队列里塞消息，而 egui 只有在新的一帧里才会把消息读出来。
-/// 120ms 对一次性点击来说感知不到延迟，又不会烧 CPU（一帧基本是空转）。
+/// 这不是"托盘刷新频率"，只是一次内存里的空队列检查（`is_empty`），几乎不耗 CPU。
+/// 真正跑帧只在真有事件的时候发生。120ms 对一次性点击来说感知不到延迟。
 pub const TRAY_POLL_INTERVAL: Duration = Duration::from_millis(120);
 
 /// 悬停提示的文字。
@@ -200,6 +200,14 @@ mod imp {
         }
     }
 
+    /// 事件队列里还有没有界面没取走的东西（只看不取）。
+    ///
+    /// 不能用 `try_recv` 探路：那会把事件消耗掉，而事件必须留给界面线程的
+    /// `poll`。`is_empty` 是纯内存操作，唤醒线程按 120ms 的节奏调它不心疼。
+    pub fn has_pending() -> bool {
+        !TrayIconEvent::receiver().is_empty() || !MenuEvent::receiver().is_empty()
+    }
+
     /// 画一个 32x32 的托盘图标。
     ///
     /// 设计：强调色的圆角方块上斜放一把扫帚柄 + 右下角扫把 + 左上三颗白点，
@@ -290,9 +298,14 @@ mod imp {
             Vec::new()
         }
     }
+
+    /// 没有托盘就没有待取事件。
+    pub fn has_pending() -> bool {
+        false
+    }
 }
 
-pub use imp::Tray;
+pub use imp::{has_pending, Tray};
 
 /// 调试日志开关：设了 `CLIPSIFT_TRAY_LOG` 才写，而且只在 debug 构建里有代码。
 ///
@@ -302,28 +315,38 @@ pub fn debug_enabled() -> bool {
     cfg!(debug_assertions) && std::env::var_os("CLIPSIFT_TRAY_LOG").is_some()
 }
 
-/// 起一个心跳线程，按 `TRAY_POLL_INTERVAL` 的节奏催 egui 跑一帧。
+/// 起一个「托盘唤醒线程」：盯着托盘事件队列，有东西才把界面叫醒跑一帧。
 ///
-/// 为什么不用 `ctx.request_repaint_after`：那只是"排一个未来的重绘"，
-/// 而窗口被 `Visible(false)` 藏起来之后 eframe 会直接跳过这一帧（Windows 上
-/// 只有非 0 尺寸的窗口才给发重绘），排进去的重绘永远不执行，托盘事件也就永远
-/// 没人收——表现就是"点 × 之后点托盘图标没反应"。从另一个线程调
-/// `request_repaint` 走的是 `PostMessage` 那条路，不依赖窗口可见，藏起来的窗口
-/// 照样能醒过来。
+/// 两条唤醒路径，走哪条取决于窗口可不可见：
+/// - 看得见：`ctx.request_repaint()` 就够，它会走 `PostMessage` 把帧排上。
+/// - 藏起来了：Windows 不给不可见窗口派发 WM_PAINT，`request_repaint` 排的帧
+///   永远不执行，必须用 `taskbar::force_paint` 从外部同步塞一个 WM_PAINT 进去。
+///   这是 0.3.1「收进托盘之后点图标没反应」的根治办法。
 ///
+/// 老实现是无条件每 `TRAY_POLL_INTERVAL` 催一次帧：既叫不醒隐藏窗口（bug 根源），
+/// 可见时又白跑 8 帧/秒。现在平时只是在独立线程上按 120ms 看一眼队列空不空
+/// （纯内存操作），真有事件才让界面画一帧，空闲时零帧零 CPU。
+///
+/// `hwnd` 第一帧才拿得到；拿不到就退化成只发 `request_repaint`（非 Windows 那套）。
 /// 线程一直活到进程退出，和程序同寿命，所以不需要 join。
-pub fn spawn_heartbeat(ctx: eframe::egui::Context) {
+pub fn spawn_pump(ctx: eframe::egui::Context, hwnd: Option<isize>) {
     // 已经起过就别再起，重复的线程只会白烧 CPU。
     static STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     if STARTED.swap(true, std::sync::atomic::Ordering::Relaxed) {
         return;
     }
     std::thread::Builder::new()
-        .name("clipsift-tray-pulse".to_string())
+        .name("clipsift-tray-pump".to_string())
         .spawn(move || loop {
             std::thread::sleep(TRAY_POLL_INTERVAL);
-            ctx.request_repaint();
+            if !has_pending() {
+                continue;
+            }
+            match hwnd {
+                Some(h) if !crate::taskbar::is_visible(h) => crate::taskbar::force_paint(h),
+                _ => ctx.request_repaint(),
+            }
         })
         .ok();
-    crate::debug_log("[tray] 心跳线程已起");
+    crate::debug_log("[tray] 唤醒线程已起");
 }
