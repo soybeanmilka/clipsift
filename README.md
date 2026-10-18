@@ -42,11 +42,8 @@
 
 去 [Releases](https://github.com/soybeanmilka/clipsift/releases) 下载 **`ClipSift-setup.exe`**，双击，一路下一步。
 
-或者在命令行里：
-
-```powershell
-winget install soybeanmilka.ClipSift
-```
+> `winget install soybeanmilka.ClipSift` 暂时还用不了：清单已经备好、也 `winget validate` 过了，
+> 但 PR 还没合并进 microsoft/winget-pkgs。合并之前请用上面的安装包。
 
 装完是这样：
 

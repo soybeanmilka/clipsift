@@ -45,11 +45,9 @@ are the worst offenders.
 Download **`ClipSift-setup.exe`** from
 [Releases](https://github.com/soybeanmilka/clipsift/releases) and double-click it.
 
-Or from a terminal:
-
-```powershell
-winget install soybeanmilka.ClipSift
-```
+> `winget install soybeanmilka.ClipSift` doesn't work yet: the manifest is written and passes
+> `winget validate`, but the PR hasn't been merged into microsoft/winget-pkgs. Use the installer above
+> until it is.
 
 What you get:
 
