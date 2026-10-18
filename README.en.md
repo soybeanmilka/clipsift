@@ -299,6 +299,9 @@ watcher sit on the clipboard in the background.
   (with a tray icon the window hides completely, no taskbar button either; on non-Windows
   platforms or when the tray can't be created it falls back to the taskbar). Only the
   Exit button or the tray menu's Quit really stops it
+  (the taskbar button really is gone — hiding switches the window to a tool-window
+  style, not just `SW_HIDE`; hiding visibility alone leaves Windows handing out a
+  zombie button that can't be clicked)
 - **Tray menu** — right-click the icon to show the window, start/stop the watcher,
   clean the clipboard once, or quit; the tooltip shows "watching/stopped · N cleaned"
 - **Start with Windows** — one checkbox writes the HKCU Run entry
