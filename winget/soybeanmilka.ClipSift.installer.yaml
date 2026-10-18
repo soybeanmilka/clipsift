@@ -18,12 +18,12 @@ InstallerSwitches:
 UpgradeBehavior: install
 # 卸载走 Inno 自带的 unins000.exe，winget uninstall 能找到。
 MinimumOSVersion: 10.0.0.0
-ReleaseDate: 2026-10-17
+ReleaseDate: 2026-10-18
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/soybeanmilka/clipsift/releases/download/v0.3.1/ClipSift-setup.exe
-    # 从 GitHub Release 的 CI 产物现算（v0.3.1 发布后下载 CI 产物现算）。
+    # 从 GitHub Release 的 CI 产物现算（v0.3.1 发布后下载 ClipSift-setup.exe，3970690 字节）。
     # 不能用本地编译的安装包：字节不同，哈希对不上，winget 会校验失败。
-    InstallerSha256: A4DE346E1C7688A709C5F4C942DD40EAC3023791E7B2E4EE709AC8E933B89206
+    InstallerSha256: EDCEE42569EEB44B5DA7369B3472A87FE4786A2324C611C18CBB4F038DA417C0
 ManifestType: installer
 ManifestVersion: 1.6.0
